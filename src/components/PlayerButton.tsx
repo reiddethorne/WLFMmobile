@@ -30,7 +30,7 @@ export function PlayerButton() {
         onPress={togglePlayback}
         style={({ pressed }) => [styles.button, { opacity: pressed || unsupported ? 0.6 : 1 }]}
       >
-        {loading && <ActivityIndicator color={THEME.colors.background} />}
+        {loading && <ActivityIndicator color={THEME.colors.surface} />}
         <Text style={styles.buttonText}>{label}</Text>
       </Pressable>
       <Text accessibilityLiveRegion="polite" style={styles.status}>{error ?? STATUS_TEXT[status]}</Text>
@@ -41,6 +41,6 @@ export function PlayerButton() {
 const styles = StyleSheet.create({
   container: { gap: THEME.spacing.md },
   button: { minHeight: 56, padding: THEME.spacing.md, flexDirection: "row", gap: THEME.spacing.sm, alignItems: "center", justifyContent: "center", backgroundColor: THEME.colors.accent, borderRadius: THEME.radius.pill },
-  buttonText: { color: THEME.colors.background, fontSize: THEME.fontSize.body, fontWeight: "700" },
+  buttonText: { color: THEME.colors.surface, fontSize: THEME.fontSize.body, fontWeight: "700" },
   status: { color: THEME.colors.muted, fontSize: THEME.fontSize.body, lineHeight: 24, textAlign: "center" },
 });

@@ -52,5 +52,5 @@ const styles = StyleSheet.create({
   url: { color: THEME.colors.accent, fontSize: THEME.fontSize.caption, lineHeight: 20 },
   note: { color: THEME.colors.muted, fontSize: THEME.fontSize.caption, lineHeight: 18 },
   button: { minHeight: 48, padding: THEME.spacing.md, alignItems: "center", justifyContent: "center", borderRadius: THEME.radius.pill, backgroundColor: THEME.colors.accent },
-  buttonText: { color: THEME.colors.background, fontSize: THEME.fontSize.body, fontWeight: "700" },
+  buttonText: { color: THEME.colors.surface, fontSize: THEME.fontSize.body, fontWeight: "700" },
 });
