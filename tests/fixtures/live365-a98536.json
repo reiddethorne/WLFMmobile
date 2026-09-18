@@ -1,0 +1,26 @@
+{
+  "mount-id": "a98536",
+  "name": "WLFM",
+  "station-logo": "https://broadcaster.live365.com/static/assets/logos/default.jpg",
+  "station_enabled": true,
+  "is_playing": true,
+  "stream-url": "https://streaming.live365.com/a98536",
+  "stream-hls-url": "https://streaming.live365.com/a98536/playlist.m3u8",
+  "listening-urls": [
+    {
+      "url": "https://streaming.live365.com/a98536",
+      "encoding": "mp3",
+      "bitrate": 128
+    },
+    {
+      "url": "https://streaming.live365.com/a98536_2",
+      "encoding": "aac",
+      "bitrate": 64
+    }
+  ],
+  "current-track": {
+    "title": "Corduroy",
+    "artist": "Wild Firth",
+    "art": "https://media.live365.com/download/31825126-d30b-4e9d-876a-a9e4db42c722.jpg"
+  }
+}

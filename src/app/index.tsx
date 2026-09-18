@@ -1,17 +1,32 @@
-import { Text, View, StyleSheet } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { PlayerPlaceholder } from "@/components/PlayerPlaceholder";
+import { Live365Diagnostics } from "@/components/Live365Diagnostics";
+import { THEME } from "@/constants/theme";
 
 export default function Index() {
   return (
-    <View style={styles.container}>
-      <Text>Edit src/app/index.tsx to edit this screen.</Text>
-    </View>
+    <SafeAreaView style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.content}>
+          <PlayerPlaceholder />
+          {__DEV__ && <Live365Diagnostics />}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: THEME.colors.background,
   },
+  scrollContent: {
+    flexGrow: 1,
+    padding: THEME.spacing.lg,
+    alignItems: "center",
+  },
+  content: { width: "100%", maxWidth: THEME.contentMaxWidth, gap: THEME.spacing.xl },
 });

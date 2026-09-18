@@ -1,56 +1,266 @@
-# Welcome to your Expo app 👋
+# WLFM Student Radio — Stage 3
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo Router foundation for an iOS and Android student radio app. The home screen
+contains a simple Play/Pause/Retry control and a development-only Live365
+connection check. Live365 discovery and native live playback are implemented;
+Stage 3 still needs audible playback acceptance on both platforms. Background
+controls, live song display, and UI polish remain later milestones.
 
-## Get started
+## Verified versions
 
-1. Install dependencies
+Verified September 17, 2026: Expo SDK 57 (`~57.0.23`), React Native `0.86.3`,
+React `19.2.3`, Expo Router `~57.0.21`, TypeScript `~6.0.3`, Expo Development
+Client `~57.0.19`, and Track Player **`@rntp/player` pinned to `5.9.2`**.
+Expo 58 is currently beta. Track Player v4 (`react-native-track-player`) is frozen.
+V5 requires RN 0.74+ and the New Architecture, which Expo 57 always enables.
+This meets documented requirements; native compilation and device behavior still
+need verification. The installed v5 license allows free academic use strictly for
+instruction or noncommercial research. A publicly operated campus station may
+fall outside that exemption, even if nonprofit; confirm eligibility or obtain a
+license before deploying. See `node_modules/@rntp/player/license.txt`.
+The optional `shaka-player` peer is omitted because web playback is outside scope.
 
-   ```bash
-   npm install
-   ```
+Sources:
 
-2. Start the app
+- [Expo 57 versioned docs](https://docs.expo.dev/versions/v57.0.0/)
+- [Expo 57 release notes](https://expo.dev/changelog/sdk-57)
+- [Router installation](https://docs.expo.dev/router/installation/)
+- [Track Player installation](https://www.rntp.dev/docs/installation)
+- [Track Player changelog](https://www.rntp.dev/changelog)
+- [Development Client](https://docs.expo.dev/versions/v57.0.0/sdk/dev-client/)
+- [EAS profiles](https://docs.expo.dev/build/eas-json/)
+- [EAS build infrastructure](https://docs.expo.dev/build-reference/infrastructure/)
+- [Live365 public stream formats](https://help.live365.com/en/support/solutions/articles/43000739178-output-encoding-settings)
 
-   ```bash
-   npx expo start
-   ```
+## Structure
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```text
+src/
+  app/                 # Expo Router routes only
+    _layout.tsx
+    index.tsx
+  components/          # Simple player card, PlayerButton, development diagnostics
+  config/station.ts    # Central public station configuration
+  constants/theme.ts   # Shared colors, spacing, radii, font sizes
+  hooks/               # Live365 diagnostics and shared radio player state
+  services/live365.ts  # Public networking and defensive parsing; no audio imports
+  services/player.ts   # Single native player and cancellable playback commands
+  services/player.web.ts # Native-only message; no web audio engine dependency
+  types/               # Application-owned station and normalized Live365 types
+tests/                 # Observed JSON fixture and networking/parsing checks
+assets/                # Existing starter images; replace branding later
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Keep the existing supported `src/app` convention; do not add a second root `app`
+directory. `@/` resolves to `src/`. The ignored `example/` starter archive is
+excluded from TypeScript checking.
 
-### Other setup steps
+Live365 requests belong in a service separate from playback and UI.
+The observed public API fields are validated at runtime, as described below.
+Only public information belongs in `STATION`;
+never bundle private API keys or broadcaster credentials, including through
+`EXPO_PUBLIC_*` variables. WLFM's public station mount ID is `a98536`.
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Install and check
 
-## Learn more
+Use Node.js 22.13+ (Node 22 LTS recommended).
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npm ci
+npm run typecheck
+npm run check:dependencies
+npx expo-doctor@latest
+npm run test:live365
+npm run test:player
+# Optional integration check against the real public endpoint:
+npm run check:live365
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Run a development build
 
-## Join the community
+Use custom development builds for native audio. Expo Go cannot validate the player.
+Current app identifiers are `dev.studentradio.wlfm`; choose institution-owned
+identifiers before distribution. Native settings belong in Expo configuration;
+generated `ios/` and `android/` folders are ignored.
 
-Join our community of developers creating universal apps.
+Local iOS requires full Xcode 26.4+ selected and an installed iOS simulator:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npm run ios
+```
+
+Local Android requires Android Studio, its SDK, JDK 17, and an emulator or
+connected debug-enabled device:
+
+```bash
+npm run android
+```
+
+These commands generate/compile native projects and launch Metro. Once the
+client is installed, restart Metro with `npm start`.
+
+EAS alternatives (first use requires login and project association):
+
+```bash
+npx eas-cli@latest login
+npx eas-cli@latest build --platform android --profile development
+# iOS simulator:
+npx eas-cli@latest build --platform ios --profile development-simulator
+# Registered iPhone; Apple Developer signing required:
+npx eas-cli@latest build --platform ios --profile development
+```
+
+Install the development build, run `npm start`, and open the app. EAS iOS uses
+Xcode 26.6, the documented SDK 57 image, pinned in `eas.json`. Using Xcode 27
+requires additional scene-lifecycle configuration from the Expo release notes;
+that toolchain is not configured here. `npm run web` previews the UI only.
+
+## Stage 1 acceptance check
+
+On both native platforms:
+
+1. Launch: station name, slogan, and player card appear.
+2. Confirm the play button is disabled and produces no request or sound.
+3. Check safe-area spacing, scrolling, large text, and screen-reader labels.
+4. Background and reopen: the placeholder remains usable.
+
+iOS background audio is declared with `UIBackgroundModes: ["audio"]`. Track
+Player auto-links and supplies Android media-playback foreground-service
+permissions in its own manifest; Expo includes network access. No Track Player
+config plugin is needed. Playback and media controls remain future milestones.
+Rebuild the client whenever native dependencies/configuration change.
+Expo 57 targets iOS 16.4+ and Android 7+.
+
+Native playback milestones must wait until their device acceptance checks pass.
+TypeScript, bundle exports, and native project generation cannot certify playback.
+
+## Stage 2: verified Live365 integration
+
+Verified the actual public listener page, its public JavaScript client, and live
+responses on September 17, 2026:
+
+- [WLFM listener page](https://live365.com/station/WLFM-a98536)
+- [Public station JSON](https://api.live365.com/station/a98536)
+- Preferred stable listening URL: `https://streaming.live365.com/a98536`.
+- Alternative AAC: `https://streaming.live365.com/a98536_2`.
+- Advertised HLS: `https://streaming.live365.com/a98536/playlist.m3u8`.
+
+The station JSON uses `mount-id`, `name`, `station-logo`, `station_enabled`,
+`is_playing`, `listening-urls` (`url`, `encoding`, `bitrate`), `stream-url`,
+`stream-hls-url`, and `current-track` (`title`, `artist`, `art`). The fixture in
+`tests/fixtures/live365-a98536.json` is a subset of one actual response, with
+unneeded fields omitted. App types describe normalized, validated data rather
+than casting JSON to a claimed API interface. These are observed listener APIs,
+not a documented versioned broadcaster contract; fields can change.
+
+MP3 returned `audio/mpeg`, 128 kbps; AAC returned `audio/aacp`, 64 kbps.
+Both streams advertised `icy-metaint: 8192` and yielded actual ICY title/artist
+metadata. The HLS URL returned a valid master playlist. Select MP3 for the first
+player milestone because the canonical mount works, ICY metadata is available,
+and the codec is broadly supported. RNTP 5 supports both standard streams and
+HLS; no device latency/robustness comparison has been performed. Keep HLS available
+without preferring it or persisting its temporary CDN/session URL.
+
+`getStationInfo()`, `getStreamUrl()`, and `getNowPlaying()` are independently
+callable. Each makes a fresh request; consumers needing multiple fields should
+use one station snapshot, as the diagnostics hook does. Requests have a 10-second
+timeout covering body reading, optional caller cancellation, and typed errors.
+Missing metadata returns `null`; missing/unsafe stream URLs are not fabricated.
+Explicitly disabled/offline stations report no preferred stream or current song.
+No credentials, dependencies, audio requests, or metadata polling were added.
+
+The home screen displays diagnostics only under `__DEV__`. It fetches once when
+mounted and on manual Refresh. Unmount/superseded requests are cancelled, and
+cancelled results cannot overwrite a newer snapshot. This API snapshot may differ
+from what a future listener hears due to buffering or personalized ad insertion;
+stream metadata will be evaluated as the primary source in Stage 5.
+
+Stage 2 checks: strict TypeScript and 15 service checks pass, including live calls
+to all three service functions. Stage 2 device checks were subsequently confirmed
+by the user. No native dependency/config
+changed in Stage 2, so an existing Stage 1 development build only needs `npm start`.
+
+On iOS and Android, open the app and confirm API Connected, URL available, and
+title/artist (or LIVE/WLFM fallbacks). Turn off network access and press Refresh:
+an error should appear, with Play still disabled. Restore connectivity and Refresh:
+the connection should recover. Navigate away during a request to verify cleanup.
+These describe the Stage 2 checkpoint; Play is now enabled in Stage 3.
+
+## Foundation verification
+
+Passed: strict TypeScript, online Expo dependency checks, all 21 Expo Doctor
+checks, and bundle exports for iOS/Android/web. Native projects were generated
+in a temporary directory without installing pods; Track Player was detected by
+autolinking on both platforms, and generated iOS configuration contains the audio
+background mode. Generated native projects were not added to this repository.
+
+Native builds/device checks remain pending: this machine currently selects
+Apple Command Line Tools instead of full Xcode, and has JDK 23 rather than the
+recommended JDK 17. Use the EAS development profiles or configure those local
+toolchains before completing the native acceptance check.
+
+
+## Stage 3: native live playback
+
+Uses the installed `@rntp/player` 5.9.2 APIs verified against current docs and
+source: synchronous setup, media-item, play/pause, retry, state getters/events,
+and `setCommands`. Sources: [setup](https://www.rntp.dev/docs/player-setup),
+[playback](https://www.rntp.dev/docs/playback), [events](https://www.rntp.dev/docs/events).
+
+No initialization or playback occurs on initial mount. First Play lazily loads
+the native library, initializes once in the foreground, discovers the verified
+Live365 stream, installs one `isLive` item, and requests playback. Native state
+determines the display. Pause cancels discovery or buffering, and a generation
+counter prevents superseded attempts from playing. Normal resume reuses the
+live item at the live edge. No seek/next/previous controls are available.
+No native dependency/configuration changed in this stage.
+
+Failed connections offer explicit Retry. Native error recovery calls `retry()`
+then `play()`. A stalled start fails after 30 seconds; retry reloads the stream.
+No automatic retries or metadata polling occur. Station fallback metadata is
+LIVE/WLFM; stream-driven metadata is disabled until Stage 5. Native Play/Pause
+commands are the minimum needed to restrict the media session to radio controls;
+Stage 4 reviews/tests background behavior, interruptions, and native controls.
+
+The service owns one player per JS runtime. UI observer subscriptions clean up
+through `useSyncExternalStore`; screen unmount does not destroy the player.
+Native/app-state listeners are registered once for the service lifetime.
+Stage 4 will evaluate session/entry-point needs before adding background logic.
+The web-specific service displays a development-build requirement instead of
+installing the optional Shaka web audio engine.
+
+Passed: strict TypeScript, 13 player tests using a native mock, existing Live365
+tests, native generation/autolinking on both platforms, and iOS/Android/web
+bundle exports. These cannot prove native compilation or audible playback.
+Full Xcode is installed at version 26.3, below SDK 57's documented minimum 26.4;
+CocoaPods is not on PATH. Use EAS or configure the local toolchain. Native UI
+automation access is unavailable.
+
+Exact next command for an existing development build:
+
+```bash
+npm start
+```
+
+Test on **both iOS and Android**, with a client including `@rntp/player`:
+
+1. Cold launch: no audio and a Play button.
+2. Press Play: Connecting/Buffering changes to Playing live and WLFM is audible.
+3. Pause: sound stops. Resume: live audio returns.
+4. Rapidly press Play/Pause during connection: canceled attempts must not start.
+5. Disable connectivity and attempt playback: an error offers Retry. Restore
+   connectivity and Retry: audio returns without restarting the app.
+6. Leave/reopen the screen: its state matches the actual player.
+
+If native linking is missing, rebuild; refreshing JS is insufficient:
+
+```bash
+npx eas-cli@latest build --platform android --profile development
+npx eas-cli@latest build --platform ios --profile development
+# For an iOS simulator instead of a physical iPhone:
+npx eas-cli@latest build --platform ios --profile development-simulator
+```
+
+Install the rebuilt client and run `npm start`. Do not use Expo Go. Stage 3 is
+complete only after Play reliably starts the stream on both native platforms;
+do not begin Stage 4 until that acceptance check passes.

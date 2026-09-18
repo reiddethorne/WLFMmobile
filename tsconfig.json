@@ -2,6 +2,10 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
     "paths": {
       "@/*": [
         "./src/*"
@@ -11,6 +15,7 @@
       ]
     }
   },
+  "exclude": ["example", "node_modules", "ios", "android"],
   "include": [
     "**/*.ts",
     "**/*.tsx",
