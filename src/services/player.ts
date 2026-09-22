@@ -4,6 +4,15 @@ import { STATION } from "../config/station";
 import { STATION_ARTWORK } from "../constants/assets";
 import type { RadioPlayerSnapshot } from "../types/player";
 import { getStationInfo } from "./live365";
+import {
+  configureNativeMetadataUpdater,
+  FALLBACK_NOW_PLAYING,
+  receiveEffectiveMetadata,
+  receiveStreamMetadata,
+  refreshMetadataFallback,
+  resetNowPlaying,
+  setMetadataPlaybackActive,
+} from "./metadata";
 
 type PlayerModule = typeof import("@rntp/player");
 const CONNECTION_TIMEOUT_MS = 30_000;
@@ -46,6 +55,7 @@ function updateFromNative() {
   const player = playerModule.default;
   const state = player.getPlaybackState();
   const playing = player.isPlaying();
+  setMetadataPlaybackActive(playing);
   if (playing) clearConnectionTimeout();
   if (state === playerModule.PlaybackState.Error) {
     fail("The radio stream could not be played. Check your connection and retry.");
@@ -80,6 +90,7 @@ function fail(message: string) {
   wantsPlayback = false;
   failure = message;
   clearConnectionTimeout();
+  setMetadataPlaybackActive(false);
   // Preserve the queue for retry; suppress late starts after a failed connection.
   if (playerModule && setupComplete) {
     try { playerModule.default.pause(); } catch { /* Keep the original actionable error. */ }
@@ -104,8 +115,8 @@ async function initialize() {
         // Prevent an unplugged headset/Bluetooth route from falling back to speakers.
         handleAudioBecomingNoisy: true,
         liveResumeBehavior: "live-edge",
-        // Song metadata is a later milestone; keep station fallback metadata now.
-        autoUpdateMetadataFromStream: false,
+        // Native ICY/ID3 updates remain authoritative, including while JS sleeps.
+        autoUpdateMetadataFromStream: true,
         android: {
           // The live network stream must keep the CPU and Wi-Fi path awake.
           wakeMode: "network",
@@ -115,6 +126,10 @@ async function initialize() {
       });
       setupComplete = true;
     }
+    configureNativeMetadataUpdater((metadata) => {
+      const index = player.getActiveMediaItemIndex();
+      if (index !== null) player.updateMetadata(index, metadata);
+    });
     // Native handling works while JS is suspended and exposes only Play/Pause.
     player.setCommands({ capabilities: [playerModule.PlayerCommand.PlayPause], handling: "native" });
     if (!listenersComplete) {
@@ -131,8 +146,15 @@ async function initialize() {
       player.addEventListener(playerModule.Event.PlaybackError, ({ message }) => {
         fail(message.trim() || "Playback failed. Check your connection and retry.");
       });
+      player.addEventListener(playerModule.Event.MetadataReceived, receiveStreamMetadata);
+      player.addEventListener(playerModule.Event.MediaMetadataChanged, receiveEffectiveMetadata);
       AppState.addEventListener("change", (state) => {
-        if (state === "active") reconcileFromNative();
+        if (state === "active") {
+          reconcileFromNative();
+          const item = player.getActiveMediaItem();
+          if (item) receiveEffectiveMetadata(item);
+          refreshMetadataFallback();
+        }
       });
       listenersComplete = true;
     }
@@ -189,12 +211,12 @@ export async function playRadio(): Promise<void> {
       if (current?.mediaId === STATION.id && currentUrl === stream.url && state === playerModule.PlaybackState.Error) {
         player.retry();
       } else {
+        resetNowPlaying();
         player.setMediaItem({
           mediaId: STATION.id,
           url: { uri: stream.url, headers: { "Icy-MetaData": "1" } },
           mimeType: stream.mimeType,
-          title: "LIVE",
-          artist: station.name,
+          ...FALLBACK_NOW_PLAYING,
           isLive: true,
           artworkUrl: STATION_ARTWORK,
         });
@@ -219,6 +241,7 @@ export function pauseRadio(): void {
   wantsPlayback = false;
   failure = null;
   clearConnectionTimeout();
+  setMetadataPlaybackActive(false);
   try {
     if (playerModule && setupComplete) playerModule.default.pause();
     updateFromNative();

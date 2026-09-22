@@ -1,10 +1,10 @@
-# WLFM Student Radio — Stage 4
+# WLFM Student Radio — Stage 5
 
 Expo Router foundation for an iOS and Android student radio app. The home screen
 contains a simple Play/Pause/Retry control and a development-only Live365
 connection check. Live365 discovery, native live playback, background audio,
-and native Play/Pause controls are configured. Live song display and UI polish
-remain later milestones.
+native Play/Pause controls, and synchronized live metadata are implemented.
+Visual polish remains for Stage 6.
 
 ## Verified versions
 
@@ -39,15 +39,16 @@ src/
   app/                 # Expo Router routes only
     _layout.tsx
     index.tsx
-  components/          # Simple player card, PlayerButton, development diagnostics
+  components/          # Player controls, NowPlaying, development diagnostics
   config/station.ts    # Central public station configuration
   constants/theme.ts   # Shared colors, spacing, radii, font sizes
   hooks/               # Live365 diagnostics and shared radio player state
   services/live365.ts  # Public networking and defensive parsing; no audio imports
+  services/metadata.ts # Stream-first metadata and scoped Live365 fallback polling
   services/player.ts   # Single native player and cancellable playback commands
   services/player.web.ts # Native-only message; no web audio engine dependency
-  types/               # Application-owned station and normalized Live365 types
-tests/                 # Observed JSON fixture and networking/parsing checks
+  types/               # Application-owned station, player, and metadata types
+tests/                 # Networking, player, and metadata behavior checks
 assets/                # Existing starter images; replace branding later
 ```
 
@@ -72,6 +73,7 @@ npm run check:dependencies
 npx expo-doctor@latest
 npm run test:live365
 npm run test:player
+npm run test:metadata
 # Optional integration check against the real public endpoint:
 npm run check:live365
 ```
@@ -345,4 +347,74 @@ A physical iPhone is the meaningful lock-screen/interruption test. Local iOS
 builds remain blocked until Xcode 26.4+ and CocoaPods are selected; this machine
 previously reported Xcode 26.3. For Android local builds, use the SDK 57 toolchain
 and JDK 17. The EAS development profiles avoid those local toolchain limits.
-Do not start Stage 5 until this Stage 4 device checklist passes on iOS and Android.
+Stage 4 device acceptance was confirmed by the user before Stage 5 began.
+
+## Stage 5: now-playing metadata
+
+Track Player's `autoUpdateMetadataFromStream` is enabled. Native ICY/ID3 metadata
+updates the active media item and therefore the lock screen, Android notification,
+Bluetooth surfaces, and app UI without replacing or restarting the stream. The
+app listens to raw `MetadataReceived` events to establish stream authority and
+to `MediaMetadataChanged` for the effective native state. Foreground reconciliation
+recovers metadata events missed while JavaScript was suspended.
+
+The public Live365 `current-track` response is a fallback and artwork source. It
+is requested immediately after playback becomes audible and then at most every
+30 seconds while audio is playing. Polling stops and in-flight requests are
+aborted on pause or error. Live365 never overrides a stream title or artist.
+Its artwork is used only when normalized title and artist match the current
+stream track, preventing delayed directory responses from attaching stale art.
+
+Missing, blank, malformed, or non-HTTPS metadata falls back to the bundled WLFM
+image and:
+
+```text
+LIVE
+Student Radio
+```
+
+The temporary home-screen `NowPlaying` component displays title, artist, and
+artwork. Failed remote artwork loads return to the bundled image. Stage 6 owns
+the final visual design.
+
+Verified for Stage 5:
+
+- strict TypeScript;
+- 7 metadata tests covering source priority, matching artwork, malformed data,
+  polling scope, cancellation, and foreground recovery;
+- 15 player tests covering native event wiring and lock-screen metadata updates;
+- 15/15 Live365 checks against the current public WLFM endpoint;
+- iOS, Android, and web bundle exports.
+
+Sources: [Track Player events](https://www.rntp.dev/docs/events),
+[Track Player playback](https://www.rntp.dev/docs/playback),
+[Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/), and the
+[WLFM public station response](https://api.live365.com/station/a98536).
+
+No native package or Expo configuration changed in Stage 5. Use the existing
+development build and run:
+
+```bash
+npm start
+```
+
+Test on both iOS and Android:
+
+1. Before playback, confirm `LIVE` / `Student Radio` and bundled artwork.
+2. Press Play and confirm the current stream title and artist appear without an
+   audio restart; matching Live365 artwork may follow.
+3. Check that the lock screen or Android notification shows the same metadata.
+4. Leave the stream playing across a song change. Confirm app and system metadata
+   update while audio remains continuous.
+5. Pause and wait at least 30 seconds; metadata should remain stable. Resume and
+   confirm it refreshes.
+6. Background and foreground the app, then confirm its metadata matches the
+   native media controls.
+7. Disable networking during playback and confirm the last valid metadata or
+   station fallback remains usable without crashing.
+
+Stream and directory timing can differ because of buffering or inserted content;
+the app intentionally trusts the audio stream in that case. Background JavaScript
+may be suspended, but Track Player's native auto-update path still updates stream
+title and artist on system media surfaces. Do not start Stage 6 until this Stage 5
+checklist passes on both platforms.
