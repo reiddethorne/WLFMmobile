@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  headerContent: { width: "100%", paddingHorizontal: THEME.spacing.md},
+  headerContent: { width: "100%", paddingHorizontal: THEME.spacing.md },
   content: {
     width: "100%",
     maxWidth: THEME.contentMaxWidth,

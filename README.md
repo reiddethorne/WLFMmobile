@@ -1,10 +1,10 @@
-# WLFM Student Radio — Stage 6
+# WLFM Student Radio — Stage 7
 
-Expo Router foundation for an iOS and Android student radio app. The home screen
-contains a simple Play/Pause/Retry control and a development-only Live365
-connection check. Live365 discovery, native live playback, background audio,
-native Play/Pause controls, synchronized live metadata, and the final player
-screen are implemented.
+Expo Router foundation for an iOS and Android student radio app. The default
+Radio tab contains the Play/Pause/Retry control and a development-only Live365
+connection check; a Schedule tab is ready for the next calendar milestone.
+Live365 discovery, native live playback, background audio, native Play/Pause
+controls, synchronized live metadata, and the final player screen are implemented.
 
 ## Verified versions
 
@@ -38,7 +38,10 @@ Sources:
 src/
   app/                 # Expo Router routes only
     _layout.tsx
-    index.tsx
+    (tabs)/
+      _layout.tsx
+      index.tsx        # Radio tab and default / route
+      schedule.tsx     # Stage 7 placeholder
   components/          # Player controls, NowPlaying, development diagnostics
   config/station.ts    # Central public station configuration
   constants/theme.ts   # Shared colors, spacing, radii, font sizes
@@ -450,7 +453,7 @@ Final engineering review:
 - iOS, Android, and web production bundle exports pass;
 - no new runtime dependency was added for the UI.
 
-### Final project tree
+### Project tree through Stage 7
 
 ```text
 WLFMmobile/
@@ -464,7 +467,10 @@ WLFMmobile/
 ├── src/
 │   ├── app/
 │   │   ├── _layout.tsx
-│   │   └── index.tsx
+│   │   └── (tabs)/
+│   │       ├── _layout.tsx
+│   │       ├── index.tsx
+│   │       └── schedule.tsx
 │   ├── components/
 │   │   ├── Live365Diagnostics.tsx
 │   │   ├── NowPlaying.tsx
@@ -559,3 +565,48 @@ References: [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/),
 [Expo development builds](https://docs.expo.dev/develop/development-builds/use-development-builds/),
 [Track Player setup](https://www.rntp.dev/docs/player-setup), and
 [Track Player events](https://www.rntp.dev/docs/events).
+
+## Stage 7: Radio and Schedule tabs
+
+The root stack now hosts one Expo Router JavaScript-tabs layout. `/` remains the
+Radio route and preserves the complete Stage 6 screen, including its sticky
+station header and development diagnostics. The player still belongs to the
+module-level service; the tab layout does not initialize, pause, replace, or
+destroy it. The Schedule route is a safe-area-aware, theme-matched placeholder
+and makes no Google Calendar request.
+
+Both routes are declared explicitly with accessible text labels. The tab bar
+uses the existing theme, 48-point minimum tab items, and platform safe-area
+handling. No icon, navigation, calendar, or state-management dependency was
+added. No native configuration changed, so an installed Stage 6 development
+build only needs the updated JavaScript bundle.
+
+Stage 7 automated validation:
+
+- strict TypeScript passed;
+- all 17 player tests passed;
+- all 7 metadata tests passed;
+- 14 local Live365 tests passed and the opt-in network test was skipped;
+- iOS and Android production bundle exports passed.
+
+Run the existing development build (not Expo Go):
+
+```bash
+npm start
+```
+
+Test on both iOS and Android:
+
+1. Confirm Radio is the first tab and the Stage 6 screen is unchanged.
+2. Start playback, switch to Schedule, and confirm audio continues without a
+   restart or buffering cycle.
+3. Return to Radio and confirm its UI matches the real native player state.
+4. Pause, resume, and switch tabs again.
+5. Lock the device from Schedule and confirm playback and native controls work.
+6. Return to Radio and confirm the app and native controls remain synchronized.
+7. Check tab labels, contrast, touch targets, safe areas, large text, and screen
+   reader output on both platforms.
+
+Before Stage 8 begins, replace the calendar ID placeholder in the staged prompt
+with the public WLFM Google Calendar ID and confirm that the calendar is public.
+Do not place private-calendar credentials or an unrestricted API key in the app.
