@@ -1,4 +1,4 @@
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 
 import { STATION } from "../config/station";
 import { STATION_ARTWORK } from "../constants/assets";
@@ -16,6 +16,8 @@ import {
 
 type PlayerModule = typeof import("@rntp/player");
 const CONNECTION_TIMEOUT_MS = 30_000;
+const NATIVE_STATION_SUFFIX = ` - ${STATION.name}`;
+const IS_NATIVE_PLATFORM = Platform.OS === "ios" || Platform.OS === "android";
 
 let playerModule: PlayerModule | null = null;
 let initialization: Promise<void> | null = null;
@@ -30,6 +32,27 @@ let failure: string | null = null;
 let timeout: ReturnType<typeof setTimeout> | null = null;
 let snapshot: RadioPlayerSnapshot = { status: "idle", error: null, canPause: false };
 const observers = new Set<() => void>();
+
+function formatNativeArtist(artist: string): string;
+function formatNativeArtist(artist: undefined): undefined;
+function formatNativeArtist(artist: string | undefined): string | undefined {
+  if (!IS_NATIVE_PLATFORM || artist === undefined) return artist;
+  const cleaned = artist.trim().replace(/\s+/g, " ");
+  const baseArtist = cleaned || FALLBACK_NOW_PLAYING.artist;
+  return baseArtist.endsWith(NATIVE_STATION_SUFFIX) ? baseArtist : `${baseArtist}${NATIVE_STATION_SUFFIX}`;
+}
+
+function normalizeEffectiveMetadata(metadata: {
+  readonly title?: string;
+  readonly artist?: string;
+  readonly artworkUrl?: unknown;
+}) {
+  if (!IS_NATIVE_PLATFORM || !metadata.artist?.endsWith(NATIVE_STATION_SUFFIX)) return metadata;
+  return {
+    ...metadata,
+    artist: metadata.artist.slice(0, -NATIVE_STATION_SUFFIX.length).trim(),
+  };
+}
 
 function publish(next: RadioPlayerSnapshot) {
   if (next.status === snapshot.status && next.error === snapshot.error && next.canPause === snapshot.canPause) return;
@@ -126,10 +149,17 @@ async function initialize() {
       });
       setupComplete = true;
     }
-    configureNativeMetadataUpdater((metadata) => {
+    const updateActiveMetadata = (metadata: Parameters<typeof player.updateMetadata>[1]) => {
       const index = player.getActiveMediaItemIndex();
-      if (index !== null) player.updateMetadata(index, metadata);
-    });
+      if (index === null) return;
+      if (metadata.artist === undefined) {
+        player.updateMetadata(index, metadata);
+        return;
+      }
+      const artist = formatNativeArtist(metadata.artist);
+      player.updateMetadata(index, artist === metadata.artist ? metadata : { ...metadata, artist });
+    };
+    configureNativeMetadataUpdater(updateActiveMetadata);
     // Native handling works while JS is suspended and exposes only Play/Pause.
     player.setCommands({ capabilities: [playerModule.PlayerCommand.PlayPause], handling: "native" });
     if (!listenersComplete) {
@@ -146,8 +176,15 @@ async function initialize() {
       player.addEventListener(playerModule.Event.PlaybackError, ({ message }) => {
         fail(message.trim() || "Playback failed. Check your connection and retry.");
       });
-      player.addEventListener(playerModule.Event.MetadataReceived, receiveStreamMetadata);
-      player.addEventListener(playerModule.Event.MediaMetadataChanged, receiveEffectiveMetadata);
+      player.addEventListener(playerModule.Event.MetadataReceived, (metadata) => {
+        receiveStreamMetadata(metadata);
+        if (IS_NATIVE_PLATFORM) {
+          updateActiveMetadata({ artist: metadata.artist ?? FALLBACK_NOW_PLAYING.artist });
+        }
+      });
+      player.addEventListener(playerModule.Event.MediaMetadataChanged, (metadata) => {
+        receiveEffectiveMetadata(normalizeEffectiveMetadata(metadata));
+      });
       AppState.addEventListener("change", (state) => {
         if (state === "active") {
           reconcileFromNative();
@@ -217,6 +254,7 @@ export async function playRadio(): Promise<void> {
           url: { uri: stream.url, headers: { "Icy-MetaData": "1" } },
           mimeType: stream.mimeType,
           ...FALLBACK_NOW_PLAYING,
+          artist: formatNativeArtist(FALLBACK_NOW_PLAYING.artist),
           isLive: true,
           artworkUrl: STATION_ARTWORK,
         });

@@ -30,6 +30,7 @@ export function PlayerButton() {
   const { status, error, canPause, togglePlayback } = useRadioPlayer();
   const loading = status === "connecting" || status === "buffering";
   const mode = canPause ? "pause" : status === "error" ? "retry" : "play";
+  const actionText = mode === "pause" ? "Pause" : mode === "retry" ? "Retry" : "Play";
   const label = mode === "pause" ? "Pause live radio" : mode === "retry" ? "Retry live radio" : "Play live radio";
   const unsupported = Platform.OS === "web";
   const statusInfo = STATUS[status];
@@ -50,8 +51,8 @@ export function PlayerButton() {
         ]}
       >
         {loading ? <ActivityIndicator color={THEME.colors.surface} size="large" /> : <TransportIcon mode={mode} />}
+        <Text style={styles.buttonText}>{actionText}</Text>
       </Pressable>
-      <Text style={styles.actionLabel}>{mode === "pause" ? "Pause" : mode === "retry" ? "Retry" : "Play"}</Text>
       <View style={styles.statusRow}>
         <View style={[styles.statusDot, { backgroundColor: statusInfo.color }]} />
         <Text accessibilityLiveRegion="polite" style={[styles.status, status === "error" && styles.errorText]}>
@@ -65,12 +66,15 @@ export function PlayerButton() {
 const styles = StyleSheet.create({
   container: { alignItems: "center", gap: THEME.spacing.sm, paddingTop: THEME.spacing.sm },
   button: {
-    width: 88,
-    height: 88,
+    width: 176,
+    minHeight: 64,
+    paddingHorizontal: THEME.spacing.lg,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: THEME.spacing.md,
     backgroundColor: THEME.colors.accent,
-    borderRadius: 44,
+    borderRadius: THEME.radius.pill,
     shadowColor: THEME.shadow.color,
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.2,
@@ -93,7 +97,7 @@ const styles = StyleSheet.create({
   pauseIcon: { height: 28, flexDirection: "row", alignItems: "center", gap: 8 },
   pauseBar: { width: 8, height: 28, backgroundColor: THEME.colors.surface, borderRadius: 2 },
   retryIcon: { color: THEME.colors.surface, fontSize: 42, lineHeight: 48, fontWeight: "500" },
-  actionLabel: { color: THEME.colors.text, fontSize: THEME.fontSize.body, fontWeight: "700" },
+  buttonText: { color: THEME.colors.surface, fontSize: THEME.fontSize.body, lineHeight: 24, fontWeight: "700" },
   statusRow: {
     minHeight: 32,
     maxWidth: "100%",

@@ -29,7 +29,7 @@ export default {
 };
 `;
 
-async function runtime(t) {
+async function runtime(t, platform = "android") {
   const folder = await mkdtemp(join(tmpdir(), "wlfm-player-tests-"));
   const source = await readFile(new URL("../src/services/player.ts", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, {
@@ -44,7 +44,7 @@ async function runtime(t) {
   await Promise.all([
     writeFile(join(folder, "player.mjs"), compiled),
     writeFile(join(folder, "native.mjs"), nativeStub),
-    writeFile(join(folder, "appstate.mjs"), `export const AppState = {currentState:'active', addEventListener(_event, handler) {this.handler=handler; return {remove(){}};}};`),
+    writeFile(join(folder, "appstate.mjs"), `export const Platform = {OS:${JSON.stringify(platform)}}; export const AppState = {currentState:'active', addEventListener(_event, handler) {this.handler=handler; return {remove(){}};}};`),
     writeFile(join(folder, "station.mjs"), `export const STATION = {id:'a98536', name:'WLFM'};`),
     writeFile(join(folder, "assets.mjs"), `export const STATION_ARTWORK = 42;`),
     writeFile(join(folder, "metadata.mjs"), `
@@ -95,7 +95,7 @@ test("simultaneous Play calls initialize once and build one live station item", 
   assert.equal(native.control.item.mediaId, "a98536");
   assert.equal(native.control.item.mimeType, "audio/mpeg");
   assert.equal(native.control.item.title, "LIVE");
-  assert.equal(native.control.item.artist, "Student Radio");
+  assert.equal(native.control.item.artist, "Student Radio - WLFM");
   assert.equal(native.control.item.artworkUrl, 42);
   assert.equal(native.control.item.url.headers["Icy-MetaData"], "1");
   const setup = native.control.calls.find(([name]) => name === "setup")[1];
@@ -215,13 +215,32 @@ test("metadata events and native updates stay connected to the active live item"
   native.emit("metadata", {title:"Home", artist:"OVAN/SHAUN"});
   native.emit("effectiveMetadata", {title:"Home", artist:"OVAN/SHAUN"});
   assert.deepEqual(metadata.controls.raw, [{title:"Home", artist:"OVAN/SHAUN"}]);
-  assert.deepEqual(metadata.controls.effective, [{title:"Home", artist:"OVAN/SHAUN"}]);
+  assert.deepEqual(metadata.controls.effective.at(-1), {title:"Home", artist:"OVAN/SHAUN"});
   metadata.controls.updater({artworkUrl:"https://media.live365.com/home.jpg"});
   assert.deepEqual(native.control.calls.at(-1), ["metadataUpdate", 0, {artworkUrl:"https://media.live365.com/home.jpg"}]);
   assert.equal(metadata.controls.active.includes(true), true);
   player.pauseRadio();
   assert.equal(metadata.controls.active.at(-1), false);
 });
+
+for (const platform of ["ios", "android"]) {
+  test(`${platform} native metadata appends WLFM without changing app metadata`, async (t) => {
+    const { player, native, metadata } = await runtime(t, platform);
+    await player.playRadio();
+    assert.equal(native.control.item.artist, "Student Radio - WLFM");
+
+    native.emit("metadata", {title:"Home", artist:"OVAN/SHAUN"});
+    assert.deepEqual(metadata.controls.raw, [{title:"Home", artist:"OVAN/SHAUN"}]);
+    assert.deepEqual(metadata.controls.effective.at(-1), {
+      ...native.control.item,
+      artist:"OVAN/SHAUN",
+    });
+    assert.equal(native.control.item.artist, "OVAN/SHAUN - WLFM");
+
+    metadata.controls.updater({title:"Next", artist:"Another Artist", artworkUrl:42});
+    assert.equal(native.control.item.artist, "Another Artist - WLFM");
+  });
+}
 
 test("foreground reconciliation adopts native state after suspended events", async (t) => {
   const { player, native, AppState } = await runtime(t);

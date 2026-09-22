@@ -33,6 +33,7 @@ const styles = StyleSheet.create({
   container: { width: "100%", alignItems: "center", gap: THEME.spacing.sm },
   artworkFrame: {
     width: "100%",
+    height: 320,
     maxWidth: 320,
     aspectRatio: 1,
     marginBottom: THEME.spacing.lg,
@@ -49,7 +50,6 @@ const styles = StyleSheet.create({
   artwork: {
     width: "100%",
     height: "100%",
-    borderRadius: THEME.radius.md,
   },
   eyebrow: { color: THEME.colors.accent, fontSize: THEME.fontSize.caption, fontWeight: "800", letterSpacing: 1.8 },
   title: { color: THEME.colors.text, fontSize: THEME.fontSize.title, lineHeight: 34, fontWeight: "700", textAlign: "center" },
