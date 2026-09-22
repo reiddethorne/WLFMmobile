@@ -1,0 +1,42 @@
+{
+  "kind": "calendar#events",
+  "summary": "WLFM",
+  "description": "WLFM student radio schedule.",
+  "timeZone": "America/Chicago",
+  "accessRole": "reader",
+  "items": [
+    {
+      "id": "sanitized-one-off-id",
+      "status": "confirmed",
+      "summary": "DRIED FRUIT LIVE",
+      "start": {
+        "dateTime": "2026-09-22T19:00:00-05:00",
+        "timeZone": "America/Chicago"
+      },
+      "end": {
+        "dateTime": "2026-09-22T20:00:00-05:00",
+        "timeZone": "America/Chicago"
+      },
+      "eventType": "default"
+    },
+    {
+      "id": "sanitized-recurring-instance-id",
+      "status": "confirmed",
+      "summary": "GT's Radio",
+      "start": {
+        "dateTime": "2026-09-22T20:00:00-05:00",
+        "timeZone": "America/Chicago"
+      },
+      "end": {
+        "dateTime": "2026-09-22T21:00:00-05:00",
+        "timeZone": "America/Chicago"
+      },
+      "recurringEventId": "sanitized-recurring-parent-id",
+      "originalStartTime": {
+        "dateTime": "2026-09-22T20:00:00-05:00",
+        "timeZone": "America/Chicago"
+      },
+      "eventType": "default"
+    }
+  ]
+}
