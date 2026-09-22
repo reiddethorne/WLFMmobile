@@ -1,8 +1,8 @@
 import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { PlayerPlaceholder } from "@/components/PlayerPlaceholder";
 import { Live365Diagnostics } from "@/components/Live365Diagnostics";
+import { RadioPlayer } from "@/components/RadioPlayer";
 import { THEME } from "@/constants/theme";
 
 export default function Index() {
@@ -10,7 +10,7 @@ export default function Index() {
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <PlayerPlaceholder />
+          <RadioPlayer />
           {__DEV__ && <Live365Diagnostics />}
         </View>
       </ScrollView>
@@ -25,7 +25,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    padding: THEME.spacing.lg,
+    paddingHorizontal: THEME.spacing.md,
+    paddingTop: THEME.spacing.xl,
+    paddingBottom: THEME.spacing.xxxl,
     alignItems: "center",
   },
   content: { width: "100%", maxWidth: THEME.contentMaxWidth, gap: THEME.spacing.xl },

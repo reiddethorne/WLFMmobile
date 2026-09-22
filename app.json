@@ -6,8 +6,8 @@
     "orientation": "portrait",
     "icon": "./assets/images/wlfm-square.png",
     "scheme": "wlfmmobile",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#10141C",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FFF8F2",
     "ios": {
       "icon": "./assets/images/wlfm-square.png",
       "bundleIdentifier": "dev.studentradio.wlfm",
@@ -30,9 +30,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#10141C",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#FFF8F2",
+          "image": "./assets/images/wlfm-square.png",
+          "imageWidth": 160
         }
       ]
     ],

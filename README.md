@@ -1,17 +1,17 @@
-# WLFM Student Radio — Stage 5
+# WLFM Student Radio — Stage 6
 
 Expo Router foundation for an iOS and Android student radio app. The home screen
 contains a simple Play/Pause/Retry control and a development-only Live365
 connection check. Live365 discovery, native live playback, background audio,
-native Play/Pause controls, and synchronized live metadata are implemented.
-Visual polish remains for Stage 6.
+native Play/Pause controls, synchronized live metadata, and the final player
+screen are implemented.
 
 ## Verified versions
 
-Verified September 17, 2026: Expo SDK 57 (`~57.0.23`), React Native `0.86.3`,
-React `19.2.3`, Expo Router `~57.0.21`, TypeScript `~6.0.3`, Expo Development
+Verified September 21, 2026: Expo SDK 57 (`~57.0.24`), React Native `0.86.3`,
+React `19.2.3`, Expo Router `~57.0.22`, TypeScript `~6.0.3`, Expo Development
 Client `~57.0.19`, and Track Player **`@rntp/player` pinned to `5.9.2`**.
-Expo 58 is currently beta. Track Player v4 (`react-native-track-player`) is frozen.
+Track Player v4 (`react-native-track-player`) is frozen.
 V5 requires RN 0.74+ and the New Architecture, which Expo 57 always enables.
 This meets documented requirements; native compilation and device behavior still
 need verification. The installed v5 license allows free academic use strictly for
@@ -416,5 +416,146 @@ Test on both iOS and Android:
 Stream and directory timing can differ because of buffering or inserted content;
 the app intentionally trusts the audio stream in that case. Background JavaScript
 may be suspended, but Track Player's native auto-update path still updates stream
-title and artist on system media surfaces. Do not start Stage 6 until this Stage 5
-checklist passes on both platforms.
+title and artist on system media surfaces.
+
+## Stage 6: final UI and engineering review
+
+Stage 5 device acceptance was confirmed before this stage. The final screen uses
+the revised design brief: generous spacing, subtle depth, accessible contrast,
+and large touch targets. It includes the WLFM logo and name, station slogan,
+LIVE badge, large artwork, title, artist, an 88-point Play/Pause/Retry control,
+and a status treatment for idle, connecting, buffering, playing, paused, and
+unavailable states. The palette is derived from the supplied WLFM artwork. Core
+text/background contrast is at least 6.9:1, and white on the primary action is
+7.3:1.
+
+The Expo appearance and splash configuration now match the light app surface.
+The splash uses the WLFM artwork on `#FFF8F2`. These are native configuration
+changes, so existing development clients must be rebuilt. Expo notes that
+development builds cannot fully reproduce the standalone splash screen; check
+the splash again in a production build.
+
+Final engineering review:
+
+- strict TypeScript is enabled; no `any` or unused imports remain;
+- player setup, listeners, and UI stores are singletons per JavaScript runtime;
+- superseded playback and Live365 requests are aborted and guarded by generations;
+- UI subscriptions and component effects clean up on unmount;
+- metadata polling stops on pause/error and stale responses cannot publish;
+- native ICY/ID3 remains the title/artist authority; matching API art is optional;
+- foreground reconciliation covers native control changes and missed metadata;
+- iOS background audio and interruption/route handling remain configured;
+- Android manifest merging retains wake lock, foreground media permissions, and
+  Track Player's `mediaPlayback` service;
+- iOS, Android, and web production bundle exports pass;
+- no new runtime dependency was added for the UI.
+
+### Final project tree
+
+```text
+WLFMmobile/
+├── app.json
+├── eas.json
+├── package.json
+├── tsconfig.json
+├── assets/
+│   └── images/
+│       └── wlfm-square.png
+├── src/
+│   ├── app/
+│   │   ├── _layout.tsx
+│   │   └── index.tsx
+│   ├── components/
+│   │   ├── Live365Diagnostics.tsx
+│   │   ├── NowPlaying.tsx
+│   │   ├── PlayerButton.tsx
+│   │   └── RadioPlayer.tsx
+│   ├── config/
+│   │   └── station.ts
+│   ├── constants/
+│   │   ├── assets.ts
+│   │   └── theme.ts
+│   ├── hooks/
+│   │   ├── useLive365Diagnostics.ts
+│   │   ├── useNowPlaying.ts
+│   │   └── useRadioPlayer.ts
+│   ├── services/
+│   │   ├── live365.ts
+│   │   ├── metadata.ts
+│   │   ├── player.ts
+│   │   └── player.web.ts
+│   └── types/
+│       ├── live365.ts
+│       ├── metadata.ts
+│       ├── player.ts
+│       └── station.ts
+└── tests/
+    ├── fixtures/live365-a98536.json
+    ├── live365.test.mjs
+    ├── metadata.test.mjs
+    └── player.test.mjs
+```
+
+### Final setup and validation
+
+Use Node.js 22.13+ and install the locked dependencies:
+
+```bash
+npm ci
+npm run typecheck
+npm run test:live365
+npm run test:metadata
+npm run test:player
+npm run check:dependencies
+```
+
+Rebuild and install a development client because Stage 6 changed native
+appearance and splash configuration:
+
+```bash
+# Android
+npx eas-cli@latest build --platform android --profile development
+
+# Physical iPhone
+npx eas-cli@latest build --platform ios --profile development
+
+# iOS Simulator
+npx eas-cli@latest build --platform ios --profile development-simulator
+```
+
+Then start Metro:
+
+```bash
+npm start
+```
+
+Perform the full physical-device acceptance pass: all six visual/player states,
+large text and screen reader labels, small-screen scrolling, live audio, a song
+change, background/lock playback, native Play/Pause, interruption handling,
+headphone/Bluetooth disconnect, offline/retry, and app/native-state agreement.
+
+For a store build after acceptance:
+
+```bash
+npx eas-cli@latest build --platform all --profile production
+```
+
+Before the first store upload, replace `dev.studentradio.wlfm` with an
+institution-owned Android package and iOS bundle identifier; these identifiers
+are difficult or impossible to change after release. Confirm that WLFM's use of
+`@rntp/player` satisfies its license, verify continued access to the observed
+public Live365 listener API, and inspect the splash screen in a release build.
+Do not put broadcaster credentials or private keys in the mobile bundle.
+
+`npm audit --omit=dev` currently reports moderate advisories in Expo SDK 57's
+transitive `query-string/decode-uri-component` and build-time
+`@expo/config-plugins/xcode/uuid` chains. npm's suggested forced fix would
+downgrade Router and SplashScreen across SDK boundaries, so it was not applied.
+Recheck after Expo publishes compatible patched dependencies; do not use
+`npm audit fix --force` on this SDK without reviewing the resulting versions.
+
+References: [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/),
+[Expo SplashScreen](https://docs.expo.dev/versions/v57.0.0/sdk/splash-screen/),
+[Expo development builds](https://docs.expo.dev/develop/development-builds/use-development-builds/),
+[Track Player setup](https://www.rntp.dev/docs/player-setup), and
+[Track Player events](https://www.rntp.dev/docs/events).

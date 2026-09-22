@@ -46,11 +46,18 @@ export function Live365Diagnostics() {
 }
 
 const styles = StyleSheet.create({
-  card: { padding: THEME.spacing.lg, gap: THEME.spacing.md, backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.md },
+  card: {
+    padding: THEME.spacing.lg,
+    gap: THEME.spacing.md,
+    backgroundColor: THEME.colors.surface,
+    borderColor: THEME.colors.border,
+    borderWidth: 1,
+    borderRadius: THEME.radius.lg,
+  },
   heading: { color: THEME.colors.accent, fontSize: THEME.fontSize.body, fontWeight: "700" },
   text: { color: THEME.colors.text, fontSize: THEME.fontSize.body, lineHeight: 24 },
   url: { color: THEME.colors.accent, fontSize: THEME.fontSize.caption, lineHeight: 20 },
   note: { color: THEME.colors.muted, fontSize: THEME.fontSize.caption, lineHeight: 18 },
-  button: { minHeight: 48, padding: THEME.spacing.md, alignItems: "center", justifyContent: "center", borderRadius: THEME.radius.pill, backgroundColor: THEME.colors.accent },
+  button: { minHeight: 52, padding: THEME.spacing.md, alignItems: "center", justifyContent: "center", borderRadius: THEME.radius.md, backgroundColor: THEME.colors.accent },
   buttonText: { color: THEME.colors.surface, fontSize: THEME.fontSize.body, fontWeight: "700" },
 });
