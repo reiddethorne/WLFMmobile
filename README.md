@@ -1,10 +1,10 @@
-# WLFM Student Radio — Stage 3
+# WLFM Student Radio — Stage 4
 
 Expo Router foundation for an iOS and Android student radio app. The home screen
 contains a simple Play/Pause/Retry control and a development-only Live365
-connection check. Live365 discovery and native live playback are implemented;
-Stage 3 still needs audible playback acceptance on both platforms. Background
-controls, live song display, and UI polish remain later milestones.
+connection check. Live365 discovery, native live playback, background audio,
+and native Play/Pause controls are configured. Live song display and UI polish
+remain later milestones.
 
 ## Verified versions
 
@@ -127,12 +127,12 @@ On both native platforms:
 iOS background audio is declared with `UIBackgroundModes: ["audio"]`. Track
 Player auto-links and supplies Android media-playback foreground-service
 permissions in its own manifest; Expo includes network access. No Track Player
-config plugin is needed. Playback and media controls remain future milestones.
-Rebuild the client whenever native dependencies/configuration change.
+config plugin is needed. Rebuild the client whenever native dependencies or
+Expo native configuration change.
 Expo 57 targets iOS 16.4+ and Android 7+.
 
-Native playback milestones must wait until their device acceptance checks pass.
-TypeScript, bundle exports, and native project generation cannot certify playback.
+Native playback milestones require their device acceptance checks. TypeScript,
+bundle exports, and native project generation cannot certify audible playback.
 
 ## Stage 2: verified Live365 integration
 
@@ -225,7 +225,8 @@ Stage 4 reviews/tests background behavior, interruptions, and native controls.
 The service owns one player per JS runtime. UI observer subscriptions clean up
 through `useSyncExternalStore`; screen unmount does not destroy the player.
 Native/app-state listeners are registered once for the service lifetime.
-Stage 4 will evaluate session/entry-point needs before adding background logic.
+Stage 4 uses native command handling, so a JavaScript playback-session entry
+point is not needed for Play/Pause while the app process is suspended.
 The web-specific service displays a development-build requirement instead of
 installing the optional Shaka web audio engine.
 
@@ -261,6 +262,87 @@ npx eas-cli@latest build --platform ios --profile development
 npx eas-cli@latest build --platform ios --profile development-simulator
 ```
 
-Install the rebuilt client and run `npm start`. Do not use Expo Go. Stage 3 is
-complete only after Play reliably starts the stream on both native platforms;
-do not begin Stage 4 until that acceptance check passes.
+Install the rebuilt client and run `npm start`. Do not use Expo Go. Stage 3
+device acceptance was confirmed by the user before Stage 4 began.
+
+## Stage 4: background audio and native controls
+
+The player requests exclusive music audio focus and uses Track Player's native
+Play/Pause handling. Native handling continues to work when React Native's
+JavaScript runtime is suspended, and seek/next/previous remain unavailable.
+The queued live item supplies `LIVE`, `WLFM`, and a bundled WLFM image to iOS
+Now Playing, Android's media notification, Bluetooth, and other media surfaces.
+
+The setup explicitly enables route-loss handling. Disconnecting wired headphones
+or a Bluetooth audio route pauses playback instead of moving it to the phone
+speaker. The installed iOS player pauses for audio interruptions and resumes only
+when the system allows resumption and the stream was playing beforehand. Android
+uses Media3 audio focus through exclusive mixing. Returning the app to the
+foreground rereads native state, so the button reflects changes made through
+lock-screen or notification controls.
+
+Android uses network wake mode for the live stream and continues playback when
+the task is removed from recents. The library's Media3 service owns the foreground
+media notification. Some Android vendors can still stop long-running playback
+under device-specific battery restrictions, which requires device testing.
+
+Verified for Stage 4:
+
+- strict TypeScript;
+- 14 player service tests, including one-time initialization, native-state sync,
+  Play/Pause-only commands, background policy, and fallback system metadata;
+- all 15 Live365 service checks (14 local passes and the opt-in live check skipped);
+- iOS and Android release bundle exports, both containing bundled artwork;
+- clean Expo prebuild in a temporary directory;
+- generated iOS `UIBackgroundModes` containing `audio`;
+- successful Android merged-manifest processing containing `WAKE_LOCK`,
+  `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, and Track Player's
+  `mediaPlayback` service.
+
+Relevant current documentation:
+
+- [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/)
+- [Expo development builds](https://docs.expo.dev/develop/development-builds/use-development-builds/)
+- [Track Player setup and background playback](https://www.rntp.dev/docs/player-setup)
+- [Track Player playback and remote controls](https://www.rntp.dev/docs/playback)
+
+Expo Go cannot run this native player. A client that already contains Track
+Player and the iOS audio background mode only needs Metro for these Stage 4
+JavaScript changes:
+
+```bash
+npm start
+```
+
+If the installed client predates either native setting, rebuild it with one of:
+
+```bash
+# Android development build
+npx eas-cli@latest build --platform android --profile development
+
+# Physical iPhone development build
+npx eas-cli@latest build --platform ios --profile development
+
+# iOS Simulator development build
+npx eas-cli@latest build --platform ios --profile development-simulator
+```
+
+Install the resulting client, run `npm start`, and test on both platforms:
+
+1. Launch and press Play; wait for audible live audio.
+2. Lock the device and confirm playback continues with WLFM artwork and only a
+   Play/Pause transport control.
+3. Pause on the lock screen or Android notification, resume there, then return
+   to the app and confirm its button matches the real state.
+4. While playing, background the app and remove it from Android recents; confirm
+   audio and the notification continue.
+5. Disconnect headphones or Bluetooth; confirm playback pauses and does not
+   switch to the phone speaker.
+6. Start a call or another audio interruption; confirm playback pauses and only
+   resumes when the operating system permits it.
+
+A physical iPhone is the meaningful lock-screen/interruption test. Local iOS
+builds remain blocked until Xcode 26.4+ and CocoaPods are selected; this machine
+previously reported Xcode 26.3. For Android local builds, use the SDK 57 toolchain
+and JDK 17. The EAS development profiles avoid those local toolchain limits.
+Do not start Stage 5 until this Stage 4 device checklist passes on iOS and Android.

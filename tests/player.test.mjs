@@ -36,12 +36,14 @@ async function runtime(t) {
     .replaceAll('"react-native"', '"./appstate.mjs"')
     .replaceAll('"@rntp/player"', '"./native.mjs"')
     .replaceAll('"../config/station"', '"./station.mjs"')
+    .replaceAll('"../constants/assets"', '"./assets.mjs"')
     .replaceAll('"./live365"', '"./live365.mjs"');
   await Promise.all([
     writeFile(join(folder, "player.mjs"), compiled),
     writeFile(join(folder, "native.mjs"), nativeStub),
     writeFile(join(folder, "appstate.mjs"), `export const AppState = {currentState:'active', addEventListener(_event, handler) {this.handler=handler; return {remove(){}};}};`),
     writeFile(join(folder, "station.mjs"), `export const STATION = {id:'a98536', name:'WLFM'};`),
+    writeFile(join(folder, "assets.mjs"), `export const STATION_ARTWORK = 42;`),
     writeFile(join(folder, "live365.mjs"), `
       export const controls = {calls:0, load:null};
       export const station = {name:'WLFM', artworkUrl:null, preferredStream:{url:'https://streaming.live365.com/a98536', mimeType:'audio/mpeg'}};
@@ -78,8 +80,17 @@ test("simultaneous Play calls initialize once and build one live station item", 
   assert.equal(native.control.item.isLive, true);
   assert.equal(native.control.item.mediaId, "a98536");
   assert.equal(native.control.item.mimeType, "audio/mpeg");
+  assert.equal(native.control.item.title, "LIVE");
+  assert.equal(native.control.item.artist, "WLFM");
+  assert.equal(native.control.item.artworkUrl, 42);
   assert.equal(native.control.item.url.headers["Icy-MetaData"], "1");
-  assert.deepEqual(native.control.calls.find(([name]) => name === "commands")[1].capabilities, ["playPause"]);
+  const setup = native.control.calls.find(([name]) => name === "setup")[1];
+  assert.equal(setup.audioMixing, "exclusive");
+  assert.equal(setup.handleAudioBecomingNoisy, true);
+  assert.equal(setup.android.wakeMode, "network");
+  assert.equal(setup.android.taskRemovedBehavior, "continue");
+  const commands = native.control.calls.find(([name]) => name === "commands")[1];
+  assert.deepEqual(commands, {capabilities:["playPause"], handling:"native"});
   assert.equal(player.getRadioPlayerSnapshot().status, "buffering");
   native.audible();
   assert.equal(player.getRadioPlayerSnapshot().status, "playing");
@@ -180,6 +191,19 @@ test("native pause updates the screen and unsubscribed observers stay removed", 
   unsubscribe(); const before = updates;
   native.audible();
   assert.equal(updates, before);
+  assert.equal(player.getRadioPlayerSnapshot().status, "playing");
+});
+
+test("foreground reconciliation adopts native state after suspended events", async (t) => {
+  const { player, native, AppState } = await runtime(t);
+  await player.playRadio(); native.audible();
+  // Model a lock-screen pause whose JS event was missed while the runtime slept.
+  native.control.playing = false;
+  native.control.state = "ready";
+  AppState.handler("active");
+  assert.equal(player.getRadioPlayerSnapshot().status, "paused");
+  native.control.playing = true;
+  AppState.handler("active");
   assert.equal(player.getRadioPlayerSnapshot().status, "playing");
 });
 

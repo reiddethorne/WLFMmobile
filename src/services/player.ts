@@ -1,6 +1,7 @@
 import { AppState } from "react-native";
 
 import { STATION } from "../config/station";
+import { STATION_ARTWORK } from "../constants/assets";
 import type { RadioPlayerSnapshot } from "../types/player";
 import { getStationInfo } from "./live365";
 
@@ -60,6 +61,17 @@ function updateFromNative() {
   publish({ status, error: null, canPause: wantsPlayback || playing });
 }
 
+function reconcileFromNative() {
+  if (playerModule && setupComplete) {
+    const player = playerModule.default;
+    if (!player.isPlaying() && player.getPlaybackState() === playerModule.PlaybackState.Ready && !discovering) {
+      wantsPlayback = false;
+      clearConnectionTimeout();
+    }
+  }
+  updateFromNative();
+}
+
 function fail(message: string) {
   generation += 1;
   request?.abort();
@@ -87,13 +99,23 @@ async function initialize() {
       }
       player.setupPlayer({
         contentType: "music",
+        // Claim audio focus so calls and other interruptions pause/resume safely.
+        audioMixing: "exclusive",
+        // Prevent an unplugged headset/Bluetooth route from falling back to speakers.
+        handleAudioBecomingNoisy: true,
         liveResumeBehavior: "live-edge",
         // Song metadata is a later milestone; keep station fallback metadata now.
         autoUpdateMetadataFromStream: false,
+        android: {
+          // The live network stream must keep the CPU and Wi-Fi path awake.
+          wakeMode: "network",
+          // Match normal radio behavior when the app is removed from recents.
+          taskRemovedBehavior: "continue",
+        },
       });
       setupComplete = true;
     }
-    // Suppress seeking/skip controls; background behavior is reviewed in Stage 4.
+    // Native handling works while JS is suspended and exposes only Play/Pause.
     player.setCommands({ capabilities: [playerModule.PlayerCommand.PlayPause], handling: "native" });
     if (!listenersComplete) {
       player.addEventListener(playerModule.Event.PlaybackStateChanged, updateFromNative);
@@ -110,7 +132,7 @@ async function initialize() {
         fail(message.trim() || "Playback failed. Check your connection and retry.");
       });
       AppState.addEventListener("change", (state) => {
-        if (state === "active") updateFromNative();
+        if (state === "active") reconcileFromNative();
       });
       listenersComplete = true;
     }
@@ -174,7 +196,7 @@ export async function playRadio(): Promise<void> {
           title: "LIVE",
           artist: station.name,
           isLive: true,
-          ...(station.artworkUrl ? { artworkUrl: station.artworkUrl } : {}),
+          artworkUrl: STATION_ARTWORK,
         });
       }
     }
