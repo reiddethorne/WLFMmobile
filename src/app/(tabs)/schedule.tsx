@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ScheduleDiagnostics } from "@/components/ScheduleDiagnostics";
 import { THEME } from "@/constants/theme";
 
 export default function Schedule() {
@@ -11,8 +12,9 @@ export default function Schedule() {
           Schedule
         </Text>
         <Text style={styles.message}>
-          The WLFM program schedule is coming in Stage 8.
+          Calendar integration is being verified. The complete program schedule is coming in Stage 9.
         </Text>
+        {__DEV__ && <ScheduleDiagnostics />}
       </View>
     </SafeAreaView>
   );
@@ -28,7 +30,7 @@ const styles = StyleSheet.create({
     maxWidth: THEME.contentMaxWidth,
     paddingHorizontal: THEME.spacing.lg,
     paddingVertical: THEME.spacing.xxl,
-    gap: THEME.spacing.md,
+    gap: THEME.spacing.lg,
     alignSelf: "center",
   },
   heading: {

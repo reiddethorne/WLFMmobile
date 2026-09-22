@@ -32,7 +32,9 @@
     "test:live365": "node --test tests/live365.test.mjs",
     "test:player": "node --test tests/player.test.mjs",
     "test:metadata": "node --test tests/metadata.test.mjs",
+    "test:calendar": "node --test tests/googleCalendar.test.mjs",
     "check:live365": "LIVE365_LIVE_CHECK=1 node --test tests/live365.test.mjs",
+    "check:calendar": "GOOGLE_CALENDAR_LIVE_CHECK=1 node --env-file-if-exists=.env.local --test tests/googleCalendar.test.mjs",
     "check:dependencies": "expo install --check"
   },
   "private": true,

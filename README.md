@@ -1,8 +1,9 @@
-# WLFM Student Radio — Stage 7
+# WLFM Student Radio — Stage 8
 
 Expo Router foundation for an iOS and Android student radio app. The default
 Radio tab contains the Play/Pause/Retry control and a development-only Live365
-connection check; a Schedule tab is ready for the next calendar milestone.
+connection check. The Schedule tab now verifies a public Google Calendar through
+a separately tested, read-only schedule service; its final UI remains Stage 9.
 Live365 discovery, native live playback, background audio, native Play/Pause
 controls, synchronized live metadata, and the final player screen are implemented.
 
@@ -41,17 +42,18 @@ src/
     (tabs)/
       _layout.tsx
       index.tsx        # Radio tab and default / route
-      schedule.tsx     # Stage 7 placeholder
-  components/          # Player controls, NowPlaying, development diagnostics
-  config/station.ts    # Central public station configuration
+      schedule.tsx     # Stage 8 development verification
+  components/          # Player controls and development diagnostics
+  config/              # Central station and calendar configuration
   constants/theme.ts   # Shared colors, spacing, radii, font sizes
-  hooks/               # Live365 diagnostics and shared radio player state
+  hooks/               # Cancellable UI state and shared radio player state
+  services/googleCalendar.ts # Public schedule networking and defensive parsing
   services/live365.ts  # Public networking and defensive parsing; no audio imports
   services/metadata.ts # Stream-first metadata and scoped Live365 fallback polling
   services/player.ts   # Single native player and cancellable playback commands
   services/player.web.ts # Native-only message; no web audio engine dependency
-  types/               # Application-owned station, player, and metadata types
-tests/                 # Networking, player, and metadata behavior checks
+  types/               # Application-owned station, player, metadata, schedule types
+tests/                 # Networking, parsing, player, and metadata behavior checks
 assets/                # Existing starter images; replace branding later
 ```
 
@@ -77,8 +79,10 @@ npx expo-doctor@latest
 npm run test:live365
 npm run test:player
 npm run test:metadata
+npm run test:calendar
 # Optional integration check against the real public endpoint:
 npm run check:live365
+npm run check:calendar
 ```
 
 ## Run a development build
@@ -453,12 +457,13 @@ Final engineering review:
 - iOS, Android, and web production bundle exports pass;
 - no new runtime dependency was added for the UI.
 
-### Project tree through Stage 7
+### Project tree through Stage 8
 
 ```text
 WLFMmobile/
 ├── app.json
 ├── eas.json
+├── .env.example
 ├── package.json
 ├── tsconfig.json
 ├── assets/
@@ -475,8 +480,10 @@ WLFMmobile/
 │   │   ├── Live365Diagnostics.tsx
 │   │   ├── NowPlaying.tsx
 │   │   ├── PlayerButton.tsx
-│   │   └── RadioPlayer.tsx
+│   │   ├── RadioPlayer.tsx
+│   │   └── ScheduleDiagnostics.tsx
 │   ├── config/
+│   │   ├── calendar.ts
 │   │   └── station.ts
 │   ├── constants/
 │   │   ├── assets.ts
@@ -484,8 +491,10 @@ WLFMmobile/
 │   ├── hooks/
 │   │   ├── useLive365Diagnostics.ts
 │   │   ├── useNowPlaying.ts
-│   │   └── useRadioPlayer.ts
+│   │   ├── useRadioPlayer.ts
+│   │   └── useScheduleDiagnostics.ts
 │   ├── services/
+│   │   ├── googleCalendar.ts
 │   │   ├── live365.ts
 │   │   ├── metadata.ts
 │   │   ├── player.ts
@@ -494,9 +503,13 @@ WLFMmobile/
 │       ├── live365.ts
 │       ├── metadata.ts
 │       ├── player.ts
+│       ├── schedule.ts
 │       └── station.ts
 └── tests/
-    ├── fixtures/live365-a98536.json
+    ├── fixtures/
+    │   ├── google-calendar-events.json
+    │   └── live365-a98536.json
+    ├── googleCalendar.test.mjs
     ├── live365.test.mjs
     ├── metadata.test.mjs
     └── player.test.mjs
@@ -512,6 +525,7 @@ npm run typecheck
 npm run test:live365
 npm run test:metadata
 npm run test:player
+npm run test:calendar
 npm run check:dependencies
 ```
 
@@ -610,3 +624,66 @@ Test on both iOS and Android:
 Before Stage 8 begins, replace the calendar ID placeholder in the staged prompt
 with the public WLFM Google Calendar ID and confirm that the calendar is public.
 Do not place private-calendar credentials or an unrestricted API key in the app.
+
+## Stage 8: Google Calendar service and parsing
+
+The configured WLFM calendar was verified as public with a real `events.list`
+request on September 22, 2026. The 14-day response returned HTTP 200 and 19
+events with no next page. It identified the calendar as `America/Chicago` and
+contained both one-off events and API-expanded recurring instances. The observed
+events were timed; descriptions and locations were absent. The committed fixture
+keeps the observed response and event shapes while replacing opaque identifiers
+and removing personal naming. All-day parsing follows the official event schema
+and is tested separately because no all-day event appeared in the live window.
+
+`googleCalendar.ts` owns networking and defensive parsing. It sends the API key
+in `x-goog-api-key`, never in a URL; requests use RFC 3339 bounds, the station
+timezone, `singleEvents=true`, start-time ordering, cancelled-event exclusion,
+and the maximum documented page size. Every `nextPageToken` is followed. One
+10-second timeout covers the response body and every page, while caller aborts
+remain distinct. Configuration, HTTP, network, unreadable JSON, malformed data,
+timeouts, and cancellation have separate error codes with no key-bearing errors.
+
+The normalized model is a timed/all-day discriminated union. Timed values retain
+their RFC 3339 offsets. All-day values stay as `YYYY-MM-DD`, including Google's
+exclusive end date, so device timezones cannot shift them. Missing summaries use
+`Untitled program`; cancelled events are omitted. Recurrence rules are not parsed
+in the app because Google returns expanded instances.
+
+The Schedule tab still is not the final schedule UI. In development it shows a
+cancellable connection check, event count, first event, API status, and Retry.
+Production builds keep only the Stage 9 placeholder. Calendar code has no player
+imports and switching tabs does not affect the audio singleton.
+
+Local configuration belongs only in ignored `.env.local`:
+
+```text
+EXPO_PUBLIC_GOOGLE_CALENDAR_ID=<public-calendar-id>
+EXPO_PUBLIC_GOOGLE_CALENDAR_API_KEY=<restricted-public-api-key>
+```
+
+`EXPO_PUBLIC_` values are extractable from the app bundle. Restrict the key to
+the Google Calendar API, apply quotas, and never reuse it for private data. A
+production release should use separate platform-restricted keys supplied per
+build or move Calendar access behind a small cached proxy.
+
+Stage 8 automated validation:
+
+- strict TypeScript passed;
+- 19/19 local Calendar tests passed;
+- the opt-in live public-calendar test passed;
+- all 17 player, 7 metadata, and 14 local Live365 tests passed;
+- iOS and Android production bundle exports passed;
+- no new dependency or native configuration was added.
+
+Run the existing development build—not Expo Go for playback validation:
+
+```bash
+npm start
+```
+
+Open Schedule and confirm Configuration Ready, API Connected, a nonzero event
+count, a first event, and a working Retry button. Disable connectivity and Retry
+to confirm a safe error, restore it, and retry successfully. While doing this,
+play WLFM and switch tabs to confirm audio and native state remain uninterrupted.
+Repeat on Android and iOS before starting Stage 9.
