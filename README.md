@@ -1,9 +1,9 @@
-# WLFM Student Radio — Stage 8
+# WLFM Student Radio — Stage 9
 
 Expo Router foundation for an iOS and Android student radio app. The default
 Radio tab contains the Play/Pause/Retry control and a development-only Live365
-connection check. The Schedule tab now verifies a public Google Calendar through
-a separately tested, read-only schedule service; its final UI remains Stage 9.
+connection check. The Schedule tab displays the next 14 days from a public
+Google Calendar through separately tested read-only networking and schedule layers.
 Live365 discovery, native live playback, background audio, native Play/Pause
 controls, synchronized live metadata, and the final player screen are implemented.
 
@@ -42,7 +42,7 @@ src/
     (tabs)/
       _layout.tsx
       index.tsx        # Radio tab and default / route
-      schedule.tsx     # Stage 8 development verification
+      schedule.tsx     # Virtualized 14-day schedule
   components/          # Player controls and development diagnostics
   config/              # Central station and calendar configuration
   constants/theme.ts   # Shared colors, spacing, radii, font sizes
@@ -457,7 +457,7 @@ Final engineering review:
 - iOS, Android, and web production bundle exports pass;
 - no new runtime dependency was added for the UI.
 
-### Project tree through Stage 8
+### Project tree through Stage 9
 
 ```text
 WLFMmobile/
@@ -481,7 +481,9 @@ WLFMmobile/
 │   │   ├── NowPlaying.tsx
 │   │   ├── PlayerButton.tsx
 │   │   ├── RadioPlayer.tsx
-│   │   └── ScheduleDiagnostics.tsx
+│   │   ├── ScheduleEventCard.tsx
+│   │   ├── ScheduleList.tsx
+│   │   └── ScheduleSectionHeader.tsx
 │   ├── config/
 │   │   ├── calendar.ts
 │   │   └── station.ts
@@ -492,13 +494,14 @@ WLFMmobile/
 │   │   ├── useLive365Diagnostics.ts
 │   │   ├── useNowPlaying.ts
 │   │   ├── useRadioPlayer.ts
-│   │   └── useScheduleDiagnostics.ts
+│   │   └── useSchedule.ts
 │   ├── services/
 │   │   ├── googleCalendar.ts
 │   │   ├── live365.ts
 │   │   ├── metadata.ts
 │   │   ├── player.ts
-│   │   └── player.web.ts
+│   │   ├── player.web.ts
+│   │   └── schedule.ts
 │   └── types/
 │       ├── live365.ts
 │       ├── metadata.ts
@@ -512,7 +515,8 @@ WLFMmobile/
     ├── googleCalendar.test.mjs
     ├── live365.test.mjs
     ├── metadata.test.mjs
-    └── player.test.mjs
+    ├── player.test.mjs
+    └── schedule.test.mjs
 ```
 
 ### Final setup and validation
@@ -687,3 +691,58 @@ count, a first event, and a working Retry button. Disable connectivity and Retry
 to confirm a safe error, restore it, and retry successfully. While doing this,
 play WLFM and switch tabs to confirm audio and native state remain uninterrupted.
 Repeat on Android and iOS before starting Stage 9.
+
+## Stage 9: Schedule screen
+
+Stage 8 device verification was confirmed before this stage. The temporary
+calendar diagnostics are replaced by a virtualized `SectionList` showing the
+configured 14-day schedule. Events are grouped and ordered by calendar date in
+`America/Chicago`, independent of the phone timezone. Timed entries show Central
+start/end times; date-only entries remain all-day calendar values and are never
+converted through a device timezone.
+
+`schedule.ts` owns the pure schedule-domain derivations and formatting. It uses
+Hermes-supported `Intl.DateTimeFormat` with the station timezone and
+`formatToParts` for stable `YYYY-MM-DD` grouping. Localized labels are never used
+for event ordering. Tests cover a UTC/station-date difference and the March 2026
+spring daylight-saving transition without calculating offsets manually.
+
+`useSchedule` owns request and UI state. It starts once when the lazy Schedule
+tab mounts, prevents overlapping requests, aborts on cleanup, rejects stale
+results by generation, and retains successful events after a failed refresh.
+There is no calendar polling. A lightweight minute clock updates derived ON AIR
+state without making network requests. Current programs use `start <= now < end`;
+future selection is timestamp-based. All-day informational entries are displayed
+but deliberately excluded from inferred ON AIR and UP NEXT status.
+
+The screen includes initial loading, loaded, empty, no-data error, retained-data
+refresh warning, missing-configuration, malformed-response, explicit Retry, and
+pull-to-refresh behavior. Current programs have text and screen-reader ON AIR
+status; when nothing is live, the next timed program is highlighted. Event titles
+are headings, time labels include station-zone abbreviations for screen readers,
+and cards do not clip descriptions, locations, or large text. Dark themed text
+and buttons avoid relying on the low-contrast decorative gold.
+
+Stage 9 automated validation:
+
+- strict TypeScript passed;
+- 19 Calendar networking/parsing tests and 7 schedule-domain tests passed;
+- station-timezone grouping, DST, exact current-event boundaries, next-event
+  selection, all-day behavior, and overlapping events are covered;
+- all existing player, metadata, and Live365 suites passed;
+- web, iOS, and Android bundle exports passed;
+- no dependency or native configuration was added.
+
+Run the existing development build:
+
+```bash
+npm start
+```
+
+On Android and iOS, open Schedule and verify loading, grouping, Central times,
+ON AIR/UP NEXT, empty and error treatments, Retry, pull-to-refresh, large text,
+and VoiceOver/TalkBack order. After a successful load, disable networking and
+refresh: the visible schedule must remain while the refresh warning appears.
+Test a clean offline launch separately. Change the device timezone and confirm
+dates and times remain Central. Keep radio playing throughout repeated tab
+switches and confirm playback never stops or restarts.

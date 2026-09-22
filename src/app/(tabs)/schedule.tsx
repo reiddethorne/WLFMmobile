@@ -1,21 +1,25 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ScheduleDiagnostics } from "@/components/ScheduleDiagnostics";
+import { ScheduleList } from "@/components/ScheduleList";
 import { THEME } from "@/constants/theme";
+import { useSchedule } from "@/hooks/useSchedule";
 
 export default function Schedule() {
+  const schedule = useSchedule();
+
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.content}>
-        <Text accessibilityRole="header" style={styles.heading}>
-          Schedule
-        </Text>
-        <Text style={styles.message}>
-          Calendar integration is being verified. The complete program schedule is coming in Stage 9.
-        </Text>
-        {__DEV__ && <ScheduleDiagnostics />}
-      </View>
+    <SafeAreaView edges={["top", "left", "right"]} style={styles.screen}>
+      <ScheduleList
+        currentEvent={schedule.currentEvent}
+        error={schedule.error}
+        isRefreshing={schedule.isRefreshing}
+        nextEvent={schedule.nextEvent}
+        onRefresh={schedule.refresh}
+        onRetry={schedule.retry}
+        sections={schedule.sections}
+        status={schedule.status}
+      />
     </SafeAreaView>
   );
 }
@@ -24,24 +28,5 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: THEME.colors.background,
-  },
-  content: {
-    width: "100%",
-    maxWidth: THEME.contentMaxWidth,
-    paddingHorizontal: THEME.spacing.lg,
-    paddingVertical: THEME.spacing.xxl,
-    gap: THEME.spacing.lg,
-    alignSelf: "center",
-  },
-  heading: {
-    color: THEME.colors.text,
-    fontSize: THEME.fontSize.heading,
-    lineHeight: 44,
-    fontWeight: "800",
-  },
-  message: {
-    color: THEME.colors.muted,
-    fontSize: THEME.fontSize.body,
-    lineHeight: 24,
   },
 });
