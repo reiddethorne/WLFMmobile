@@ -4,5 +4,5 @@ import type { StationConfig } from "@/types/station";
 export const STATION = {
   id: "a98536",
   name: "WLFM",
-  slogan: "Your Campus. Your Music.",
+  slogan: "The only alternative in the valley.",
 } as const satisfies StationConfig;

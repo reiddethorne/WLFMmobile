@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 import { StyleSheet } from "react-native";
 
@@ -23,6 +24,13 @@ export default function TabLayout() {
           title: "Radio",
           tabBarLabel: "Radio",
           tabBarAccessibilityLabel: "Radio tab",
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons
+              color={color}
+              name={focused ? "radio" : "radio-outline"}
+              size={size}
+            />
+          ),
         }}
       />
       <Tabs.Screen
@@ -31,6 +39,13 @@ export default function TabLayout() {
           title: "Schedule",
           tabBarLabel: "Schedule",
           tabBarAccessibilityLabel: "Schedule tab",
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons
+              color={color}
+              name={focused ? "calendar" : "calendar-outline"}
+              size={size}
+            />
+          ),
         }}
       />
     </Tabs>
