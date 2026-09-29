@@ -254,6 +254,50 @@ test("pagination follows every nextPageToken without truncation", async () => {
   });
 });
 
+test("duplicate event ids across pages are emitted only once", async () => {
+  await mockFetch(async (input) => {
+    const token = new URL(input).searchParams.get("pageToken");
+    if (token === null) return Response.json({ items: [timedFixture], nextPageToken: "page-two" });
+    return Response.json({ items: [timedFixture, recurringFixture] });
+  }, async () => {
+    const events = await getSchedule({
+      timeMin: new Date("2026-09-22T00:00:00Z"),
+      timeMax: new Date("2026-10-06T00:00:00Z"),
+    });
+    assert.deepEqual(events.map(({ id }) => id), ["sanitized-one-off-id", "sanitized-recurring-instance-id"]);
+  });
+});
+
+test("caller cancellation stops pagination and cleans up its abort listener", async () => {
+  const controller = new AbortController();
+  const originalAdd = controller.signal.addEventListener.bind(controller.signal);
+  const originalRemove = controller.signal.removeEventListener.bind(controller.signal);
+  let added = 0;
+  let removed = 0;
+  controller.signal.addEventListener = (...args) => { added += 1; return originalAdd(...args); };
+  controller.signal.removeEventListener = (...args) => { removed += 1; return originalRemove(...args); };
+
+  let calls = 0;
+  await mockFetch(async () => {
+    calls += 1;
+    if (calls === 1) return Response.json({ items: [timedFixture], nextPageToken: "page-two" });
+    controller.abort();
+    throw new Error("cancelled during page two");
+  }, async () => {
+    await assert.rejects(
+      getSchedule({
+        timeMin: new Date("2026-09-22T00:00:00Z"),
+        timeMax: new Date("2026-10-06T00:00:00Z"),
+        signal: controller.signal,
+      }),
+      isCalendarError("aborted"),
+    );
+  });
+  assert.equal(calls, 2);
+  assert.equal(added, 1);
+  assert.equal(removed, 1);
+});
+
 test("invalid or repeated page tokens are rejected", async () => {
   for (const secondToken of ["", 42]) {
     await mockFetch(async () => Response.json({ items: [], nextPageToken: secondToken }), async () => {

@@ -184,10 +184,12 @@ async function fetchSchedule(config: CalendarConfig, options: ScheduleRequestOpt
 
   try {
     const events: ScheduleEvent[] = [];
+    const seenEventIds = new Set<string>();
     const seenPageTokens = new Set<string>();
     let pageToken: string | null = null;
 
     do {
+      if (controller.signal.aborted) throw requestError(null, options.signal, timedOut);
       const requestUrl = buildEventsUrl(config, options.timeMin, options.timeMax, pageToken);
       let response: Response;
       try {
@@ -213,7 +215,12 @@ async function fetchSchedule(config: CalendarConfig, options: ScheduleRequestOpt
       }
 
       const page = parsePage(body);
-      events.push(...page.events);
+      if (controller.signal.aborted) throw requestError(null, options.signal, timedOut);
+      for (const event of page.events) {
+        if (seenEventIds.has(event.id)) continue;
+        seenEventIds.add(event.id);
+        events.push(event);
+      }
       pageToken = page.nextPageToken;
       if (pageToken !== null) {
         if (seenPageTokens.has(pageToken)) {

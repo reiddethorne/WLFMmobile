@@ -44,7 +44,7 @@ async function runtime(t, platform = "android") {
   await Promise.all([
     writeFile(join(folder, "player.mjs"), compiled),
     writeFile(join(folder, "native.mjs"), nativeStub),
-    writeFile(join(folder, "appstate.mjs"), `export const Platform = {OS:${JSON.stringify(platform)}}; export const AppState = {currentState:'active', addEventListener(_event, handler) {this.handler=handler; return {remove(){}};}};`),
+    writeFile(join(folder, "appstate.mjs"), `export const Platform = {OS:${JSON.stringify(platform)}}; export const AppState = {currentState:'active', listenerRegistrations:0, addEventListener(_event, handler) {this.listenerRegistrations++; this.handler=handler; return {remove(){}};}};`),
     writeFile(join(folder, "station.mjs"), `export const STATION = {id:'a98536', name:'WLFM'};`),
     writeFile(join(folder, "assets.mjs"), `export const STATION_ARTWORK = 42;`),
     writeFile(join(folder, "metadata.mjs"), `
@@ -86,9 +86,10 @@ test("opening the player does not initialize, fetch, or autoplay", async (t) => 
 });
 
 test("simultaneous Play calls initialize once and build one live station item", async (t) => {
-  const { player, native, live365 } = await runtime(t);
+  const { player, native, live365, AppState } = await runtime(t);
   await Promise.all([player.playRadio(), player.playRadio(), player.playRadio()]);
   assert.equal(native.control.calls.filter(([name]) => name === "setup").length, 1);
+  assert.equal(AppState.listenerRegistrations, 1);
   assert.equal(native.control.calls.filter(([name]) => name === "play").length, 1);
   assert.equal(live365.controls.calls, 1);
   assert.equal(native.control.item.isLive, true);

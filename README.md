@@ -1,4 +1,4 @@
-# WLFM Student Radio — Stage 9
+# WLFM Student Radio — Stage 10
 
 Expo Router foundation for an iOS and Android student radio app. The default
 Radio tab contains the Play/Pause/Retry control and a development-only Live365
@@ -9,8 +9,8 @@ controls, synchronized live metadata, and the final player screen are implemente
 
 ## Verified versions
 
-Verified September 21, 2026: Expo SDK 57 (`~57.0.24`), React Native `0.86.3`,
-React `19.2.3`, Expo Router `~57.0.22`, TypeScript `~6.0.3`, Expo Development
+Verified September 29, 2026: Expo SDK 57 (`~57.0.26`), React Native `0.86.3`,
+React `19.2.3`, Expo Router `~57.0.24`, TypeScript `~6.0.3`, Expo Development
 Client `~57.0.19`, and Track Player **`@rntp/player` pinned to `5.9.2`**.
 Track Player v4 (`react-native-track-player`) is frozen.
 V5 requires RN 0.74+ and the New Architecture, which Expo 57 always enables.
@@ -48,6 +48,7 @@ src/
   constants/theme.ts   # Shared colors, spacing, radii, font sizes
   hooks/               # Cancellable UI state and shared radio player state
   services/googleCalendar.ts # Public schedule networking and defensive parsing
+  services/scheduleState.ts # Five-minute memory cache and request coordination
   services/live365.ts  # Public networking and defensive parsing; no audio imports
   services/metadata.ts # Stream-first metadata and scoped Live365 fallback polling
   services/player.ts   # Single native player and cancellable playback commands
@@ -457,7 +458,7 @@ Final engineering review:
 - iOS, Android, and web production bundle exports pass;
 - no new runtime dependency was added for the UI.
 
-### Project tree through Stage 9
+### Final project tree through Stage 10
 
 ```text
 WLFMmobile/
@@ -501,7 +502,8 @@ WLFMmobile/
 │   │   ├── metadata.ts
 │   │   ├── player.ts
 │   │   ├── player.web.ts
-│   │   └── schedule.ts
+│   │   ├── schedule.ts
+│   │   └── scheduleState.ts
 │   └── types/
 │       ├── live365.ts
 │       ├── metadata.ts
@@ -516,7 +518,8 @@ WLFMmobile/
     ├── live365.test.mjs
     ├── metadata.test.mjs
     ├── player.test.mjs
-    └── schedule.test.mjs
+    ├── schedule.test.mjs
+    └── scheduleState.test.mjs
 ```
 
 ### Final setup and validation
@@ -746,3 +749,180 @@ refresh: the visible schedule must remain while the refresh warning appears.
 Test a clean offline launch separately. Change the device timezone and confirm
 dates and times remain Central. Keep radio playing throughout repeated tab
 switches and confirm playback never stops or restarts.
+
+## Stage 10: reliability, production setup, and release review
+
+Stage 9 device verification was confirmed before this final hardening pass. The
+Schedule screen now uses a module-owned in-memory store, separate from both the
+UI and radio player. A successful response is fresh for five minutes. Schedule
+requests occur on the first tab focus, on a later focus or app foreground only
+when stale, or whenever the listener explicitly pulls to refresh or presses
+Retry. Leaving the tab or backgrounding the app cancels active calendar work.
+There is no interval polling, off-focus polling, or disk persistence.
+
+The last successful response remains in memory for the current JavaScript
+runtime. A failed refresh keeps it visible with a warning. A cold offline launch
+has no cached data and shows the offline error; this is intentional because no
+offline-launch requirement has been established. Request generations prevent a
+cancelled response from replacing newer data, and one active-request slot
+coalesces simultaneous focus, foreground, pull-to-refresh, and Retry triggers.
+Pagination observes caller cancellation, repeated page tokens fail safely, and
+duplicate event IDs returned across pages are emitted once.
+
+The radio architecture is unchanged. `player.ts` still owns one native Track
+Player instance and one lifetime native-listener set per JavaScript runtime.
+Route components only subscribe to its external state, so switching to Schedule
+does not initialize, pause, replace, or dispose the player. Calendar and
+Live365 requests use independent services, abort controllers, state, and error
+handling. Stage 10 adds no dependency and changes no native or routing config;
+an installed Stage 9 development build only needs the new JavaScript bundle.
+
+### Calendar and environment setup
+
+This client reads public data only. In Google Calendar on a computer, open the
+station calendar's **Settings and sharing**, enable **Make available to public**
+with full event details, and confirm every title, description, and location is
+intended for public display. Copy the calendar ID from **Integrate calendar**.
+Google Workspace administrators can disable public sharing, and sharing changes
+can take time to propagate.
+
+In Google Cloud:
+
+1. Create or select the station's project.
+2. Enable **Google Calendar API** under APIs & Services.
+3. Create a standard API key under APIs & Services > Credentials. OAuth, a
+   service account, and downloaded credential JSON are not required for this
+   public read-only design.
+4. Apply an **API restriction** allowing only Google Calendar API.
+5. Set conservative project quotas and monitor 403/429 responses. The app's
+   five-minute focus cache limits routine demand but does not replace quotas.
+6. Evaluate application restrictions with release builds. Google application
+   restrictions are platform-specific, so Android, iOS, and web require separate
+   keys. If Calendar REST requests cannot satisfy the chosen client restriction,
+   use a small cached server proxy with an IP-restricted server key rather than
+   shipping a broadly usable key.
+
+Create ignored `.env.local` from `.env.example`:
+
+```text
+EXPO_PUBLIC_GOOGLE_CALENDAR_ID=<public-calendar-id>
+EXPO_PUBLIC_GOOGLE_CALENDAR_API_KEY=<calendar-api-only-key>
+```
+
+| Variable | Required | Purpose | Exposure |
+| --- | --- | --- | --- |
+| `EXPO_PUBLIC_GOOGLE_CALENDAR_ID` | Yes | Public schedule calendar | Inlined into the client bundle |
+| `EXPO_PUBLIC_GOOGLE_CALENDAR_API_KEY` | Yes | Google project/quota key for public `events.list` | Inlined into the client bundle |
+
+`EXPO_PUBLIC_` values are public, extractable application configuration—not
+secrets. Never use this key for private calendars or other APIs. `.env`,
+`.env.local`, and other `.env.*` files are ignored; `.env.example` contains only
+blank placeholders. Restart Metro after changing local variables. For EAS cloud
+builds, define both values in the matching EAS `development` and `production`
+environments (the dashboard avoids putting the key in shell history). EAS
+visibility settings can reduce accidental log exposure but cannot make an
+inlined client value secret.
+
+References: [public calendar sharing](https://support.google.com/calendar/answer/37083),
+[Calendar `events.list`](https://developers.google.com/workspace/calendar/api/v3/reference/events/list),
+[Calendar quotas](https://developers.google.com/workspace/calendar/api/guides/quota),
+[Google API-key restrictions](https://docs.cloud.google.com/api-keys/docs/add-restrictions-api-keys),
+[Expo environment variables](https://docs.expo.dev/guides/environment-variables/),
+and [EAS environments](https://docs.expo.dev/eas/environment-variables/).
+
+### Development, validation, and builds
+
+Use the existing development build—not Expo Go—because playback depends on
+`@rntp/player`:
+
+```bash
+npm ci
+npm start
+```
+
+Run the complete automated review:
+
+```bash
+npm run typecheck
+npm run test:calendar
+npm run test:player
+npm run test:metadata
+npm run test:live365
+npm run check:calendar
+npm run check:dependencies
+npx expo-doctor@latest
+npx expo export --platform ios
+npx expo export --platform android
+npx expo export --platform web
+```
+
+`npm run check:calendar` uses `.env.local` and contacts the real public
+calendar. `npm run check:live365` is a separate optional real-network check.
+
+Build or replace development clients only when needed for native-module or
+native-config changes:
+
+```bash
+npx eas-cli@latest build --platform android --profile development
+npx eas-cli@latest build --platform ios --profile development
+npx eas-cli@latest build --platform ios --profile development-simulator
+```
+
+Create store artifacts after device acceptance:
+
+```bash
+npx eas-cli@latest build --platform all --profile production
+```
+
+The `production` profile remains valid and uses the SDK 57-compatible Xcode 26.6
+image. EAS infers its `production` environment because it is a store profile.
+Before distribution, associate the project with the station's EAS account and
+replace `dev.studentradio.wlfm` with institution-owned identifiers. The current
+identifiers are consistent between Android and iOS but are not appropriate final
+ownership identifiers.
+
+### Timezone, refresh, and troubleshooting
+
+All displayed schedule dates and times use `America/Chicago`, including CST/CDT
+transitions, regardless of the device timezone. Google all-day end dates remain
+exclusive date-only values. ON AIR uses an inclusive start and exclusive end;
+all-day entries are never inferred to be broadcasts. A focused minute clock only
+updates ON AIR/UP NEXT state and never calls Google.
+
+- **Schedule setup needed:** confirm both variables exist, then restart Metro or
+  rebuild/re-export so Expo can inline changed `EXPO_PUBLIC_` values.
+- **API key rejected:** enable Calendar API, verify the key belongs to that
+  project, inspect API/application restrictions, and confirm release package,
+  certificate, bundle ID, or web origin settings as applicable.
+- **Calendar unavailable or 404:** confirm the calendar ID and public sharing.
+  A private calendar cannot be read by this API-key-only client.
+- **Empty schedule:** verify events fall in the next 14 days and were created on
+  the public station calendar, not a similarly named personal calendar.
+- **403/429 quota error:** inspect Calendar API quotas, reduce or redistribute
+  traffic, and prefer a cached proxy if installed-client traffic grows. The app
+  does not automatically retry and amplify a quota failure.
+- **Incorrect date or time:** confirm source events and the calendar use the
+  intended Central times. The app deliberately ignores the device timezone.
+- **Playback stops during navigation:** confirm this is a development/release
+  build containing Track Player, iOS `UIBackgroundModes: audio`, and Android's
+  merged media playback service/permissions. Rebuild the native client after a
+  native configuration change; Metro reload alone is insufficient.
+
+### Remaining physical-device acceptance
+
+Automated tests and bundle exports cannot prove audio, operating-system media
+controls, release signing, or assistive-technology behavior. On both Android and
+iOS, perform the staged prompt's 20-step final acceptance pass: play WLFM, switch
+to Schedule, refresh, lock the device from Schedule, pause/resume from native
+controls, return to Radio and compare state, change device timezone, test cached
+refresh failure and clean-launch offline behavior, reconnect and Retry, exercise
+large text and VoiceOver/TalkBack, then repeat in release-like builds. Also check
+the splash, tabs, metadata, Android notification controls, iOS lock screen, and
+background playback.
+
+Known release risks remain: the client key is extractable; public-calendar
+privacy is controlled by station calendar editors; quotas and Google API behavior
+can change; the in-memory cache does not survive process termination; direct
+mobile REST key restrictions need release-device validation; station identifiers
+still need institutional ownership; and `@rntp/player` licensing must be confirmed
+for WLFM's production use.
