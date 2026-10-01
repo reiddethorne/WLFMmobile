@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   tabBarItem: {
-    minHeight: 48,
+    minHeight: 56,
   },
   tabBarLabel: {
     fontSize: 15,

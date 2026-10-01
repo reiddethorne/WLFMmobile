@@ -21,6 +21,7 @@ for (const [source, output] of [
 
 const {
   buildScheduleSections,
+  formatEventDate,
   formatEventTime,
   formatScheduleDate,
   getCurrentEvent,
@@ -54,6 +55,14 @@ test("Intl handles the America/Chicago spring daylight-saving boundary", () => {
     display: "1:30 AM – 3:30 AM",
     accessibilityLabel: "1:30 AM CST to 3:30 AM CDT",
   });
+});
+
+test("event dates say Today in the station timezone and otherwise show the scheduled date", () => {
+  const lateTuesday = timed("late", "2026-09-22T23:30:00-05:00", "2026-09-23T00:30:00-05:00");
+  const wednesday = timed("next", "2026-09-23T19:00:00-05:00", "2026-09-23T20:00:00-05:00");
+
+  assert.equal(formatEventDate(lateTuesday, new Date("2026-09-23T04:45:00Z")), "Today");
+  assert.equal(formatEventDate(wednesday, new Date("2026-09-23T04:45:00Z")), "Wednesday, September 23");
 });
 
 test("current event uses the exact start-inclusive and end-exclusive boundary", () => {

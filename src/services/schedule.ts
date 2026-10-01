@@ -45,6 +45,12 @@ function datePart(parts: readonly Intl.DateTimeFormatPart[], type: Intl.DateTime
   return value;
 }
 
+function getStationDateKeyForDate(date: Date): string | null {
+  if (!Number.isFinite(date.getTime())) return null;
+  const parts = stationDateFormatter.formatToParts(date);
+  return `${datePart(parts, "year")}-${datePart(parts, "month")}-${datePart(parts, "day")}`;
+}
+
 function timedEventStart(event: TimedScheduleEvent): number {
   return Date.parse(event.start);
 }
@@ -62,8 +68,9 @@ function compareSectionEvents(left: ScheduleEvent, right: ScheduleEvent): number
 /** Returns YYYY-MM-DD in the station timezone without using localized text for ordering. */
 export function getStationDateKey(event: ScheduleEvent): string {
   if (event.isAllDay) return event.start;
-  const parts = stationDateFormatter.formatToParts(new Date(event.start));
-  return `${datePart(parts, "year")}-${datePart(parts, "month")}-${datePart(parts, "day")}`;
+  const date = getStationDateKeyForDate(new Date(event.start));
+  if (date === null) throw new Error("The event start time is invalid.");
+  return date;
 }
 
 /** Formats a validated calendar date without treating it as an event timestamp. */
@@ -74,6 +81,11 @@ export function formatScheduleDate(date: string): string {
   const day = Number(dayText);
   const calendarValue = new Date(Date.UTC(year, month - 1, day, 12));
   return sectionDateFormatter.format(calendarValue);
+}
+
+export function formatEventDate(event: ScheduleEvent, now: Date = new Date()): string {
+  const eventDate = getStationDateKey(event);
+  return eventDate === getStationDateKeyForDate(now) ? "Today" : formatScheduleDate(eventDate);
 }
 
 export function formatEventTime(event: ScheduleEvent): EventTimeLabel {

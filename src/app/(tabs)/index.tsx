@@ -8,7 +8,7 @@ import { THEME } from "@/constants/theme";
 
 export default function Index() {
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView edges={["top", "left", "right"]} style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scrollContent} stickyHeaderIndices={[0]}>
         <View style={styles.stickyHeader}>
           <View style={styles.headerContent}>
