@@ -70,7 +70,7 @@ export function CurrentShow() {
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    marginBottom: THEME.spacing.lg,
+    marginVertical: THEME.spacing.lg,
     padding: THEME.spacing.md,
     gap: THEME.spacing.xs,
     backgroundColor: THEME.colors.surfaceMuted,

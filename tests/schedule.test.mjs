@@ -21,9 +21,11 @@ for (const [source, output] of [
 
 const {
   buildScheduleSections,
+  filterScheduleSections,
   formatEventDate,
   formatEventTime,
   formatScheduleDate,
+  formatShortScheduleDate,
   getCurrentEvent,
   getNextEvent,
   getStationDateKey,
@@ -94,6 +96,22 @@ test("sections are date ordered with all-day entries before timed programs", () 
   assert.equal(sections[0].title, "Tuesday, September 22");
   assert.deepEqual(sections[0].data.map(({ id }) => id), ["notice", "show"]);
   assert.equal(formatScheduleDate("2026-12-31"), "Thursday, December 31");
+  assert.equal(formatShortScheduleDate("2026-12-31"), "Thu, Dec 31");
+});
+
+test("schedule sections filter by date and case-insensitive event text", () => {
+  const morning = timed("morning", "2026-09-22T08:00:00-05:00", "2026-09-22T09:00:00-05:00", "Morning Mix");
+  const evening = {
+    ...timed("evening", "2026-09-23T19:00:00-05:00", "2026-09-23T20:00:00-05:00", "Night Shift"),
+    description: "Electronic music",
+    location: "Studio B",
+  };
+  const sections = buildScheduleSections([morning, evening]);
+
+  assert.deepEqual(filterScheduleSections(sections, "ELECTRONIC", null).map((section) => section.data.map(({ id }) => id)), [["evening"]]);
+  assert.deepEqual(filterScheduleSections(sections, "studio b", null).map((section) => section.data.map(({ id }) => id)), [["evening"]]);
+  assert.deepEqual(filterScheduleSections(sections, "", "2026-09-22").map((section) => section.data.map(({ id }) => id)), [["morning"]]);
+  assert.deepEqual(filterScheduleSections(sections, "night", "2026-09-22"), []);
 });
 
 test("overlapping broadcasts choose the earliest-starting active event deterministically", () => {

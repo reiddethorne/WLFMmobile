@@ -26,6 +26,13 @@ const sectionDateFormatter = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
 });
 
+const shortDateFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+});
+
 const timeFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: STATION_TIME_ZONE,
   hour: "numeric",
@@ -83,6 +90,15 @@ export function formatScheduleDate(date: string): string {
   return sectionDateFormatter.format(calendarValue);
 }
 
+export function formatShortScheduleDate(date: string): string {
+  const [yearText, monthText, dayText] = date.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const calendarValue = new Date(Date.UTC(year, month - 1, day, 12));
+  return shortDateFormatter.format(calendarValue);
+}
+
 export function formatEventDate(event: ScheduleEvent, now: Date = new Date()): string {
   const eventDate = getStationDateKey(event);
   return eventDate === getStationDateKeyForDate(now) ? "Today" : formatScheduleDate(eventDate);
@@ -116,6 +132,27 @@ export function buildScheduleSections(events: readonly ScheduleEvent[]): readonl
       title: formatScheduleDate(date),
       data: data.sort(compareSectionEvents),
     }));
+}
+
+export function filterScheduleSections(
+  sections: readonly ScheduleSection[],
+  query: string,
+  date: string | null,
+): readonly ScheduleSection[] {
+  const normalizedQuery = query.trim().toLocaleLowerCase("en-US");
+
+  return sections.flatMap((section) => {
+    if (date !== null && section.date !== date) return [];
+
+    const data = normalizedQuery
+      ? section.data.filter((event) => (
+        [event.title, event.description, event.location]
+          .some((value) => value?.toLocaleLowerCase("en-US").includes(normalizedQuery))
+      ))
+      : section.data;
+
+    return data.length > 0 ? [{ ...section, data }] : [];
+  });
 }
 
 /** All-day entries are informational and never inferred to be live broadcasts. */

@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
     height: 320,
     maxWidth: 320,
     aspectRatio: 1,
-    marginBottom: THEME.spacing.lg,
+    marginBottom: THEME.spacing.md,
     backgroundColor: THEME.colors.surfaceMuted,
     borderColor: THEME.colors.border,
     borderWidth: 1,

@@ -53,12 +53,12 @@ export function PlayerButton() {
         {loading ? <ActivityIndicator color={THEME.colors.surface} size="large" /> : <TransportIcon mode={mode} />}
         <Text style={styles.buttonText}>{actionText}</Text>
       </Pressable>
-      <View style={styles.statusRow}>
+      {/*<View style={styles.statusRow}> //this is the status text, I might want to add it back in later, but for now it's not needed
         <View style={[styles.statusDot, { backgroundColor: statusInfo.color }]} />
         <Text accessibilityLiveRegion="polite" style={[styles.status, status === "error" && styles.errorText]}>
           {error ?? statusInfo.label}
         </Text>
-      </View>
+      </View>*/}
     </View>
   );
 }

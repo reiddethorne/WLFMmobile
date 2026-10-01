@@ -1,10 +1,20 @@
-import { ActivityIndicator, Pressable, RefreshControl, SectionList, StyleSheet, Text, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, SectionList, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { ScheduleEventCard } from "@/components/ScheduleEventCard";
+import { ScheduleFilters } from "@/components/ScheduleFilters";
 import { ScheduleSectionHeader } from "@/components/ScheduleSectionHeader";
 import { THEME } from "@/constants/theme";
 import type { ScheduleLoadError, ScheduleStatus } from "@/hooks/useSchedule";
-import { formatEventTime, formatScheduleDate, getStationDateKey, type ScheduleSection } from "@/services/schedule";
+import {
+  filterScheduleSections,
+  formatEventTime,
+  formatScheduleDate,
+  formatShortScheduleDate,
+  getStationDateKey,
+  type ScheduleSection,
+} from "@/services/schedule";
 import type { ScheduleEvent, TimedScheduleEvent } from "@/types/schedule";
 
 interface ScheduleListProps {
@@ -18,33 +28,70 @@ interface ScheduleListProps {
   readonly onRetry: () => void;
 }
 
-function Header({ currentEvent, nextEvent, error, onRetry }: Pick<
+function Header({
+  error,
+  hasFilters,
+  onClear,
+  onRetry,
+  onChangeQuery,
+  onToggleSearch,
+  query,
+  searchVisible,
+}: Pick<
   ScheduleListProps,
-  "currentEvent" | "nextEvent" | "error" | "onRetry"
->) {
-  const nextTime = nextEvent ? formatEventTime(nextEvent) : null;
+  "error" | "onRetry"
+> & {
+  readonly hasFilters: boolean;
+  readonly onClear: () => void;
+  readonly onChangeQuery: (query: string) => void;
+  readonly onToggleSearch: () => void;
+  readonly query: string;
+  readonly searchVisible: boolean;
+}) {
   return (
     <View style={styles.header}>
-      <Text accessibilityRole="header" style={styles.heading}>Schedule</Text>
-      <Text style={styles.subheading}>WLFM programs for the next 14 days · Central Time</Text>
-      {currentEvent ? (
-        <View accessible accessibilityLabel={`On air now, ${currentEvent.title}`} style={[styles.highlight, styles.liveHighlight]}>
-          <Text style={[styles.eyebrow, styles.liveText]}>ON AIR NOW</Text>
-          <Text style={styles.highlightTitle}>{currentEvent.title}</Text>
+      <View style={styles.headingRow}>
+        <Text accessibilityRole="header" style={styles.heading}>Schedule</Text>
+        <View style={styles.headingActions}>
+          {hasFilters && (
+            <Pressable
+              accessibilityLabel="Clear schedule filters"
+              accessibilityRole="button"
+              onPress={onClear}
+              style={({ pressed }) => [styles.clearFiltersButton, pressed && styles.buttonPressed]}
+            >
+              <Text style={styles.clearFiltersText}>Clear filters</Text>
+            </Pressable>
+          )}
+          <Pressable
+            accessibilityLabel={searchVisible ? "Close schedule search" : "Search schedule"}
+            accessibilityRole="button"
+            onPress={onToggleSearch}
+            style={({ pressed }) => [styles.searchButton, pressed && styles.buttonPressed]}
+          >
+            <Ionicons
+              color={THEME.colors.text}
+              name={searchVisible ? "close" : "search"}
+              size={24}
+            />
+          </Pressable>
         </View>
-      ) : nextEvent && nextTime ? (
-        <View
-          accessible
-          accessibilityLabel={`Up next, ${nextEvent.title}, ${formatScheduleDate(getStationDateKey(nextEvent))}, ${nextTime.accessibilityLabel}`}
-          style={styles.highlight}
-        >
-          <Text style={styles.eyebrow}>UP NEXT</Text>
-          <Text style={styles.highlightTitle}>{nextEvent.title}</Text>
-          <Text style={styles.highlightDetail}>
-            {formatScheduleDate(getStationDateKey(nextEvent))} · {nextTime.display}
-          </Text>
-        </View>
-      ) : null}
+      </View>
+      {searchVisible && (
+        <TextInput
+          accessibilityLabel="Search scheduled programs"
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoFocus
+          clearButtonMode="while-editing"
+          onChangeText={onChangeQuery}
+          placeholder="Search programs..."
+          placeholderTextColor={THEME.colors.muted}
+          returnKeyType="search"
+          style={styles.searchInput}
+          value={query}
+        />
+      )}
       {error && (
         <View accessibilityLiveRegion="polite" style={styles.refreshWarning}>
           <View style={styles.warningText}>
@@ -54,6 +101,43 @@ function Header({ currentEvent, nextEvent, error, onRetry }: Pick<
           <RetryButton label="Try again" onPress={onRetry} />
         </View>
       )}
+    </View>
+  );
+}
+
+function ScheduleHighlight({ currentEvent, nextEvent, sections }: Pick<
+  ScheduleListProps,
+  "currentEvent" | "nextEvent"
+> & { readonly sections: readonly ScheduleSection[] }) {
+  const includesEvent = (event: TimedScheduleEvent | null) => event !== null && sections.some(
+    (section) => section.data.some((item) => item.id === event.id),
+  );
+  const visibleCurrentEvent = includesEvent(currentEvent) ? currentEvent : null;
+  const visibleNextEvent = includesEvent(nextEvent) ? nextEvent : null;
+  const nextTime = visibleNextEvent ? formatEventTime(visibleNextEvent) : null;
+
+  if (!visibleCurrentEvent && (!visibleNextEvent || !nextTime)) return null;
+
+  return (
+    <View style={styles.highlightContainer}>
+      {visibleCurrentEvent ? (
+        <View accessible accessibilityLabel={`On air now, ${visibleCurrentEvent.title}`} style={[styles.highlight, styles.liveHighlight]}>
+          <Text style={[styles.eyebrow, styles.liveText]}>ON AIR NOW</Text>
+          <Text style={styles.highlightTitle}>{visibleCurrentEvent.title}</Text>
+        </View>
+      ) : visibleNextEvent && nextTime ? (
+        <View
+          accessible
+          accessibilityLabel={`Up next, ${visibleNextEvent.title}, ${formatScheduleDate(getStationDateKey(visibleNextEvent))}, ${nextTime.accessibilityLabel}`}
+          style={styles.highlight}
+        >
+          <Text style={styles.eyebrow}>UP NEXT</Text>
+          <Text style={styles.highlightTitle}>{visibleNextEvent.title}</Text>
+          <Text style={styles.highlightDetail}>
+            {formatShortScheduleDate(getStationDateKey(visibleNextEvent))} · {nextTime.display}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -90,13 +174,45 @@ export function ScheduleList({
   onRefresh,
   onRetry,
 }: ScheduleListProps) {
+  const [query, setQuery] = useState("");
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const filterDates = useMemo(
+    () => sections.map((section) => ({
+      value: section.date,
+      label: formatShortScheduleDate(section.date),
+    })),
+    [sections],
+  );
+  const filteredSections = useMemo(
+    () => filterScheduleSections(sections, query, selectedDate),
+    [query, sections, selectedDate],
+  );
+  const hasFilters = query.trim().length > 0 || selectedDate !== null;
+
+  useEffect(() => {
+    if (selectedDate !== null && !sections.some((section) => section.date === selectedDate)) {
+      setSelectedDate(null);
+    }
+  }, [sections, selectedDate]);
+
+  const clearFilters = () => {
+    setQuery("");
+    setSelectedDate(null);
+  };
+
+  const toggleSearch = () => {
+    if (searchVisible) setQuery("");
+    setSearchVisible((visible) => !visible);
+  };
+
   if (status === "loading") {
     return (
       <View style={styles.stateScreen}>
         <ScreenHeading />
         <View accessibilityLiveRegion="polite" style={styles.centeredState}>
           <ActivityIndicator accessibilityLabel="Loading schedule" color={THEME.colors.text} size="large" />
-          <Text style={styles.stateTitle}>Loading the schedule…</Text>
+          <Text style={styles.stateTitle}>Loading schedule…</Text>
         </View>
       </View>
     );
@@ -117,17 +233,48 @@ export function ScheduleList({
 
   return (
     <SectionList<ScheduleEvent, ScheduleSection>
-      contentContainerStyle={[styles.listContent, sections.length === 0 && styles.emptyListContent]}
+      contentContainerStyle={[styles.listContent, filteredSections.length === 0 && styles.emptyListContent]}
+      keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps="handled"
       keyExtractor={(event) => event.id}
       ListEmptyComponent={(
         <View style={styles.emptyState}>
-          <Text accessibilityRole="header" style={styles.stateTitle}>No programs scheduled</Text>
-          <Text style={styles.stateMessage}>There are no WLFM programs listed for the next 14 days.</Text>
-          <RetryButton label="Refresh" onPress={onRefresh} />
+          <Text accessibilityRole="header" style={styles.stateTitle}>
+            {hasFilters ? "No matching programs" : "No programs scheduled"}
+          </Text>
+          <Text style={styles.stateMessage}>
+            {hasFilters
+              ? "Try a different search or date."
+              : "There are no WLFM programs listed for the next 14 days."}
+          </Text>
+          {hasFilters
+            ? <RetryButton label="Clear filters" onPress={clearFilters} />
+            : <RetryButton label="Refresh" onPress={onRefresh} />}
         </View>
       )}
       ListHeaderComponent={(
-        <Header currentEvent={currentEvent} nextEvent={nextEvent} error={error} onRetry={onRetry} />
+        <View>
+          <Header
+            error={error}
+            hasFilters={hasFilters}
+            onClear={clearFilters}
+            onChangeQuery={setQuery}
+            onRetry={onRetry}
+            onToggleSearch={toggleSearch}
+            query={query}
+            searchVisible={searchVisible}
+          />
+          <ScheduleFilters
+            dates={filterDates}
+            onSelectDate={setSelectedDate}
+            selectedDate={selectedDate}
+          />
+          <ScheduleHighlight
+            currentEvent={currentEvent}
+            nextEvent={nextEvent}
+            sections={filteredSections}
+          />
+        </View>
       )}
       refreshControl={(
         <RefreshControl
@@ -144,7 +291,7 @@ export function ScheduleList({
         </View>
       )}
       renderSectionHeader={({ section }) => <ScheduleSectionHeader title={section.title} />}
-      sections={sections}
+      sections={filteredSections}
       stickySectionHeadersEnabled
     />
   );
@@ -159,7 +306,7 @@ const styles = StyleSheet.create({
     maxWidth: THEME.contentMaxWidth,
     paddingHorizontal: THEME.spacing.lg,
     paddingTop: THEME.spacing.xl,
-    paddingBottom: THEME.spacing.lg,
+    paddingBottom: THEME.spacing.sm,
     gap: THEME.spacing.sm,
     alignSelf: "center",
   },
@@ -169,19 +316,69 @@ const styles = StyleSheet.create({
     lineHeight: 44,
     fontWeight: "800",
   },
+  headingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: THEME.spacing.md,
+  },
+  headingActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: THEME.spacing.sm,
+  },
+  clearFiltersButton: {
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  clearFiltersText: {
+    color: THEME.colors.text,
+    fontSize: 14,
+    fontWeight: "700",
+    textDecorationLine: "underline",
+  },
+  searchButton: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: THEME.colors.surface,
+    borderColor: THEME.colors.border,
+    borderWidth: 1,
+    borderRadius: THEME.radius.pill,
+  },
+  searchInput: {
+    width: "100%",
+    maxWidth: 400,
+    minHeight: 48,
+    paddingHorizontal: THEME.spacing.md,
+    alignSelf: "flex-end",
+    color: THEME.colors.text,
+    fontSize: THEME.fontSize.body,
+    backgroundColor: THEME.colors.surface,
+    borderColor: THEME.colors.border,
+    borderWidth: 1,
+    borderRadius: THEME.radius.md,
+  },
   subheading: {
     color: THEME.colors.muted,
     fontSize: THEME.fontSize.body,
     lineHeight: 24,
   },
   highlight: {
-    marginTop: THEME.spacing.md,
     padding: THEME.spacing.lg,
     gap: THEME.spacing.xs,
     backgroundColor: THEME.colors.surfaceMuted,
     borderColor: THEME.colors.border,
     borderWidth: 1,
     borderRadius: THEME.radius.lg,
+  },
+  highlightContainer: {
+    width: "100%",
+    maxWidth: THEME.contentMaxWidth,
+    paddingHorizontal: THEME.spacing.lg,
+    paddingTop: THEME.spacing.md,
+    alignSelf: "center",
   },
   liveHighlight: {
     backgroundColor: THEME.colors.liveSurface,
