@@ -50,7 +50,9 @@ export function PlayerButton() {
           unsupported && styles.buttonDisabled,
         ]}
       >
-        {loading ? <ActivityIndicator color={THEME.colors.surface} size="large" /> : <TransportIcon mode={mode} />}
+        <View style={styles.iconSlot}>
+          {loading ? <ActivityIndicator color={THEME.colors.surface} size="large" /> : <TransportIcon mode={mode} />}
+        </View>
         <Text style={styles.buttonText}>{actionText}</Text>
       </Pressable>
       {/*<View style={styles.statusRow}> //this is the status text, I might want to add it back in later, but for now it's not needed
@@ -83,21 +85,34 @@ const styles = StyleSheet.create({
   },
   buttonPressed: { backgroundColor: THEME.colors.accentPressed, transform: [{ scale: 0.97 }] },
   buttonDisabled: { backgroundColor: THEME.colors.disabled, shadowOpacity: 0 },
+  iconSlot: {
+    width: 32,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   playIcon: {
     width: 0,
     height: 0,
-    marginLeft: 6,
     borderTopWidth: 14,
     borderBottomWidth: 14,
     borderLeftWidth: 22,
     borderTopColor: "transparent",
     borderBottomColor: "transparent",
     borderLeftColor: THEME.colors.surface,
+    transform: [{ translateX: 2 }],
   },
   pauseIcon: { height: 28, flexDirection: "row", alignItems: "center", gap: 8 },
   pauseBar: { width: 8, height: 28, backgroundColor: THEME.colors.surface, borderRadius: 2 },
   retryIcon: { color: THEME.colors.surface, fontSize: 42, lineHeight: 48, fontWeight: "500" },
-  buttonText: { color: THEME.colors.surface, fontSize: THEME.fontSize.body, lineHeight: 24, fontWeight: "700" },
+  buttonText: {
+    width: 52,
+    color: THEME.colors.surface,
+    fontSize: THEME.fontSize.body,
+    lineHeight: 24,
+    fontWeight: "700",
+    textAlign: "left",
+  },
   statusRow: {
     minHeight: 32,
     maxWidth: "100%",
