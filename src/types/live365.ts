@@ -12,6 +12,10 @@ export interface Live365NowPlaying {
   readonly artworkUrl: string | null;
 }
 
+export interface Live365RecentTrack extends Live365NowPlaying {
+  readonly startedAt: string | null;
+}
+
 export interface Live365StationInfo {
   readonly id: string;
   readonly name: string;
@@ -22,6 +26,7 @@ export interface Live365StationInfo {
   readonly preferredStream: Live365Stream | null;
   readonly hlsUrl: string | null;
   readonly nowPlaying: Live365NowPlaying | null;
+  readonly recentlyPlayed: readonly Live365RecentTrack[];
 }
 
 export interface Live365RequestOptions {

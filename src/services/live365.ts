@@ -1,6 +1,7 @@
 import { STATION } from "../config/station";
 import type {
   Live365NowPlaying,
+  Live365RecentTrack,
   Live365RequestOptions,
   Live365StationInfo,
   Live365Stream,
@@ -77,6 +78,29 @@ function parseNowPlaying(value: unknown): Live365NowPlaying | null {
   return { title, artist, artworkUrl: httpsUrl(value.art) };
 }
 
+function dateTime(value: unknown): string | null {
+  const candidate = text(value);
+  if (!candidate) return null;
+  // Live365 currently separates its UTC date and time with a space.
+  const parsed = new Date(candidate.replace(" ", "T"));
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function parseRecentlyPlayed(value: unknown): readonly Live365RecentTrack[] {
+  if (!Array.isArray(value)) return [];
+  const tracks: Live365RecentTrack[] = [];
+  for (const entry of value) {
+    const track = parseNowPlaying(entry);
+    if (!track) continue;
+    tracks.push({
+      ...track,
+      startedAt: isRecord(entry) ? dateTime(entry.start) : null,
+    });
+    if (tracks.length === 5) break;
+  }
+  return tracks;
+}
+
 /** Parse only observed fields; all network JSON enters as unknown. */
 export function parseStationInfo(
   value: unknown,
@@ -128,6 +152,7 @@ export function parseStationInfo(
     hlsUrl: listeningUrl(value["stream-hls-url"], expectedId, true),
     nowPlaying: enabled === false || broadcasting === false
       ? null : parseNowPlaying(value["current-track"]),
+    recentlyPlayed: parseRecentlyPlayed(value["last-played"]),
   };
 }
 

@@ -1,7 +1,12 @@
 import { STATION_ARTWORK } from "../constants/assets";
-import type { NativeMetadataUpdate, NowPlayingSnapshot, StreamMetadataInput } from "../types/metadata";
-import type { Live365NowPlaying } from "../types/live365";
-import { getNowPlaying } from "./live365";
+import type {
+  NativeMetadataUpdate,
+  NowPlayingSnapshot,
+  RecentlyPlayedSnapshot,
+  StreamMetadataInput,
+} from "../types/metadata";
+import type { Live365NowPlaying, Live365RecentTrack } from "../types/live365";
+import { getStationInfo } from "./live365";
 
 export const FALLBACK_NOW_PLAYING = {
   title: "LIVE",
@@ -27,11 +32,14 @@ let streamTrack: TrackMetadata | null = null;
 let directoryTrack: TrackMetadata | null = null;
 let nativeUpdater: ((metadata: NativeMetadataUpdate) => void) | null = null;
 let lastNativeUpdate = "";
-let active = false;
+let playbackActive = false;
+let pollingActive = false;
 let cycle = 0;
 let request: AbortController | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
 const observers = new Set<() => void>();
+const recentlyPlayedObservers = new Set<() => void>();
+let recentlyPlayedSnapshot: RecentlyPlayedSnapshot = { tracks: [], status: "loading" };
 
 function cleanText(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
@@ -69,6 +77,25 @@ function publish(next: NowPlayingSnapshot) {
       next.artworkUrl === snapshot.artworkUrl && next.source === snapshot.source) return;
   snapshot = next;
   observers.forEach((observer) => observer());
+}
+
+function sameRecentTracks(
+  current: readonly Live365RecentTrack[],
+  next: readonly Live365RecentTrack[],
+): boolean {
+  return current.length === next.length && current.every((track, index) => {
+    const candidate = next[index];
+    return candidate !== undefined && track.title === candidate.title &&
+      track.artist === candidate.artist && track.artworkUrl === candidate.artworkUrl &&
+      track.startedAt === candidate.startedAt;
+  });
+}
+
+function publishRecentlyPlayed(next: RecentlyPlayedSnapshot) {
+  if (next.status === recentlyPlayedSnapshot.status &&
+      sameRecentTracks(recentlyPlayedSnapshot.tracks, next.tracks)) return;
+  recentlyPlayedSnapshot = next;
+  recentlyPlayedObservers.forEach((observer) => observer());
 }
 
 function updateNative(metadata: NativeMetadataUpdate) {
@@ -130,15 +157,39 @@ async function poll(expectedCycle: number) {
   const controller = new AbortController();
   request = controller;
   try {
-    const nowPlaying = await getNowPlaying({ signal: controller.signal });
-    if (active && expectedCycle === cycle && !controller.signal.aborted) applyDirectoryMetadata(nowPlaying);
+    const station = await getStationInfo({ signal: controller.signal });
+    if (pollingActive && expectedCycle === cycle && !controller.signal.aborted) {
+      // History is visible on screen immediately, but the player remains at its
+      // deliberate fallback until the listener explicitly starts playback.
+      if (playbackActive) applyDirectoryMetadata(station.nowPlaying);
+      publishRecentlyPlayed({ tracks: station.recentlyPlayed, status: "ready" });
+    }
   } catch {
     // Stream metadata and the last valid value remain usable when Live365 is unavailable.
+    if (pollingActive && expectedCycle === cycle && !controller.signal.aborted) {
+      publishRecentlyPlayed({ tracks: recentlyPlayedSnapshot.tracks, status: "error" });
+    }
   } finally {
     if (request === controller) request = null;
-    if (active && expectedCycle === cycle) {
+    if (pollingActive && expectedCycle === cycle) {
       timer = setTimeout(() => { void poll(expectedCycle); }, POLL_INTERVAL_MS);
     }
+  }
+}
+
+function reconcilePolling() {
+  const nextActive = playbackActive || recentlyPlayedObservers.size > 0;
+  if (nextActive === pollingActive) return;
+  pollingActive = nextActive;
+  cycle += 1;
+  clearTimer();
+  request?.abort();
+  request = null;
+  if (pollingActive) {
+    if (recentlyPlayedSnapshot.tracks.length === 0) {
+      publishRecentlyPlayed({ tracks: [], status: "loading" });
+    }
+    void poll(cycle);
   }
 }
 
@@ -182,17 +233,17 @@ export function resetNowPlaying() {
 }
 
 export function setMetadataPlaybackActive(nextActive: boolean) {
-  if (nextActive === active) return;
-  active = nextActive;
-  cycle += 1;
-  clearTimer();
-  request?.abort();
-  request = null;
-  if (active) void poll(cycle);
+  if (nextActive === playbackActive) return;
+  const wasPolling = pollingActive;
+  playbackActive = nextActive;
+  reconcilePolling();
+  // A mounted history section may already own the poller. Refresh immediately
+  // when playback starts so resetNowPlaying() is not visible until the next timer.
+  if (nextActive && wasPolling && pollingActive) refreshMetadataFallback();
 }
 
 export function refreshMetadataFallback() {
-  if (!active || request) return;
+  if (!pollingActive || request) return;
   cycle += 1;
   clearTimer();
   void poll(cycle);
@@ -205,4 +256,17 @@ export function getNowPlayingSnapshot(): NowPlayingSnapshot {
 export function subscribeToNowPlaying(observer: () => void): () => void {
   observers.add(observer);
   return () => { observers.delete(observer); };
+}
+
+export function getRecentlyPlayedSnapshot(): RecentlyPlayedSnapshot {
+  return recentlyPlayedSnapshot;
+}
+
+export function subscribeToRecentlyPlayed(observer: () => void): () => void {
+  recentlyPlayedObservers.add(observer);
+  reconcilePolling();
+  return () => {
+    recentlyPlayedObservers.delete(observer);
+    reconcilePolling();
+  };
 }

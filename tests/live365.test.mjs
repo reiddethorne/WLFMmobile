@@ -37,12 +37,27 @@ test("observed WLFM response prefers MP3 even when AAC is listed first", () => {
   assert.equal(parsed.preferredStream.bitrateKbps, 128);
   assert.equal(parsed.hlsUrl, "https://streaming.live365.com/a98536/playlist.m3u8");
   assert.deepEqual(parsed.nowPlaying, { title: "Corduroy", artist: "Wild Firth", artworkUrl: fixture["current-track"].art });
+  assert.deepEqual(parsed.recentlyPlayed, [
+    {
+      title: "Camino Del Sol",
+      artist: "Antena",
+      artworkUrl: fixture["last-played"][0].art,
+      startedAt: "2026-10-08T15:54:49.290Z",
+    },
+    {
+      title: "Nature Is A Song",
+      artist: "Sister Irene O'Connor",
+      artworkUrl: fixture["last-played"][1].art,
+      startedAt: "2026-10-08T15:52:51.030Z",
+    },
+  ]);
 });
 
 test("malformed optional fields do not fabricate songs or stream URLs", () => {
   const parsed = parseStationInfo({
     "mount-id": "a98536", name: 9, "station-logo": "http://unsafe.example/art.jpg",
     "current-track": { title: 5, artist: " ", art: fixture["current-track"].art },
+    "last-played": [null, {}, { title: " ", artist: 4 }, { title: "Valid", start: "not-a-date" }],
     "listening-urls": [null, { url: "https://evil.example/a98536", encoding: "mp3" },
       { url: "https://streaming.live365.com/a99999", encoding: "mp3" },
       { url: "https://streaming.live365.com/a98536?session=temporary", encoding: "mp3" }],
@@ -50,6 +65,9 @@ test("malformed optional fields do not fabricate songs or stream URLs", () => {
   assert.equal(parsed.name, "WLFM");
   assert.equal(parsed.artworkUrl, null);
   assert.equal(parsed.nowPlaying, null);
+  assert.deepEqual(parsed.recentlyPlayed, [
+    { title: "Valid", artist: null, artworkUrl: null, startedAt: null },
+  ]);
   assert.equal(parsed.preferredStream, null);
   assert.deepEqual(parsed.streams, []);
 });
@@ -87,6 +105,7 @@ test("disabled/offline stations do not report a playable stream or stale song", 
     const parsed = parseStationInfo({ ...fixture, ...flags });
     assert.equal(parsed.preferredStream, null);
     assert.equal(parsed.nowPlaying, null);
+    assert.equal(parsed.recentlyPlayed.length, fixture["last-played"].length);
   }
 });
 
@@ -160,9 +179,19 @@ test("live public endpoint and all service functions", { skip: process.env.LIVE3
   const station = await getStationInfo();
   assert.equal(station.id, "a98536");
   assert.equal(station.name, "WLFM");
+  assert.ok(station.recentlyPlayed.length <= 5);
+  for (const track of station.recentlyPlayed) {
+    assert.ok(track.title !== null || track.artist !== null);
+    assert.ok(track.startedAt === null || !Number.isNaN(Date.parse(track.startedAt)));
+  }
   const url = await getStreamUrl();
   assert.equal(url, "https://streaming.live365.com/a98536");
   const metadata = await getNowPlaying();
   assert.ok(metadata === null || typeof metadata.title === "string" || typeof metadata.artist === "string");
-  console.log(JSON.stringify({ station: station.name, streamUrl: url, nowPlaying: metadata }, null, 2));
+  console.log(JSON.stringify({
+    station: station.name,
+    streamUrl: url,
+    nowPlaying: metadata,
+    recentlyPlayed: station.recentlyPlayed,
+  }, null, 2));
 });

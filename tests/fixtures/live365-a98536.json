@@ -22,5 +22,19 @@
     "title": "Corduroy",
     "artist": "Wild Firth",
     "art": "https://media.live365.com/download/31825126-d30b-4e9d-876a-a9e4db42c722.jpg"
-  }
+  },
+  "last-played": [
+    {
+      "title": "Camino Del Sol",
+      "artist": "Antena",
+      "art": "https://media.live365.com/download/6e90d72d-0190-468d-aaff-03b56ed2d89d.jpg",
+      "start": "2026-10-08 15:54:49.29+00:00"
+    },
+    {
+      "title": "Nature Is A Song",
+      "artist": "Sister Irene O'Connor",
+      "art": "https://is1-ssl.mzstatic.com/image/thumb/Music221/example.jpg/512x512bb.jpg",
+      "start": "2026-10-08 15:52:51.03+00:00"
+    }
+  ]
 }

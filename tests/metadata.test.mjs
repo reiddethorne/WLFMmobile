@@ -18,11 +18,14 @@ async function runtime(t) {
     writeFile(join(folder, "metadata.mjs"), compiled),
     writeFile(join(folder, "assets.mjs"), `export const STATION_ARTWORK = 42;`),
     writeFile(join(folder, "live365.mjs"), `
-      export const controls = {calls:0, result:null, load:null, signal:null};
-      export async function getNowPlaying(options) {
+      export const controls = {calls:0, result:null, recent:[], load:null, signal:null};
+      export async function getStationInfo(options) {
         controls.calls++;
         controls.signal=options.signal;
-        return controls.load ? controls.load(options) : controls.result;
+        return controls.load ? controls.load(options) : {
+          nowPlaying: controls.result,
+          recentlyPlayed: controls.recent,
+        };
       }
     `),
   ]);
@@ -62,6 +65,47 @@ test("Live365 is polled only during playback and fills metadata before ICY arriv
   metadata.setMetadataPlaybackActive(true);
   assert.equal(live365.controls.calls, 1);
   metadata.setMetadataPlaybackActive(false);
+});
+
+test("recently played loads without activating now-playing metadata", async (t) => {
+  const { metadata, live365 } = await runtime(t);
+  const recent = [{
+    title: "Camino Del Sol",
+    artist: "Antena",
+    artworkUrl: "https://media.live365.com/camino.jpg",
+    startedAt: "2026-10-08T15:54:49.290Z",
+  }];
+  live365.controls.result = apiTrack;
+  live365.controls.recent = recent;
+  let updates = 0;
+  const unsubscribe = metadata.subscribeToRecentlyPlayed(() => { updates += 1; });
+  await new Promise((done) => setImmediate(done));
+  assert.equal(live365.controls.calls, 1);
+  assert.deepEqual(metadata.getRecentlyPlayedSnapshot(), { tracks: recent, status: "ready" });
+  assert.deepEqual(metadata.getNowPlayingSnapshot(), {
+    title: "LIVE", artist: "Student Radio", artworkUrl: null, source: "fallback",
+  });
+  assert.equal(updates, 1);
+  metadata.setMetadataPlaybackActive(true);
+  await new Promise((done) => setImmediate(done));
+  assert.equal(live365.controls.calls, 2);
+  assert.deepEqual(metadata.getNowPlayingSnapshot(), { ...apiTrack, source: "live365" });
+  metadata.setMetadataPlaybackActive(false);
+  unsubscribe();
+});
+
+test("recently played keeps its last valid tracks through a network error", async (t) => {
+  const { metadata, live365 } = await runtime(t);
+  const recent = [{ title: "Home", artist: "OVAN/SHAUN", artworkUrl: null, startedAt: null }];
+  live365.controls.recent = recent;
+  const unsubscribe = metadata.subscribeToRecentlyPlayed(() => {});
+  await new Promise((done) => setImmediate(done));
+  unsubscribe();
+  live365.controls.load = async () => { throw new Error("Offline"); };
+  const unsubscribeAgain = metadata.subscribeToRecentlyPlayed(() => {});
+  await new Promise((done) => setImmediate(done));
+  assert.deepEqual(metadata.getRecentlyPlayedSnapshot(), { tracks: recent, status: "error" });
+  unsubscribeAgain();
 });
 
 test("stream title and artist outrank mismatched directory metadata", async (t) => {
