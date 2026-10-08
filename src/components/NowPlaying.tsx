@@ -28,7 +28,7 @@ export function NowPlaying() {
           <PlayerButton />
         </View>
       </View>
-      <Text style={styles.eyebrow}>NOW PLAYING</Text>
+
       <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>{title}</Text>
       <Text numberOfLines={2} style={styles.artist}>{artist}</Text>
     </View>

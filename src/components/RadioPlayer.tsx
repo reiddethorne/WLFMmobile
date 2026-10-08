@@ -7,9 +7,9 @@ import { RecentlyPlayed } from "@/components/RecentlyPlayed";
 export function RadioPlayer() {
   return (
     <View>
+      <CurrentShow />
       <NowPlaying />
       <RecentlyPlayed />
-      <CurrentShow />
     </View>
   );
 }
