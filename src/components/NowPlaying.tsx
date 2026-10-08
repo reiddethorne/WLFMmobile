@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 
+import { PlayerButton } from "@/components/PlayerButton";
 import { STATION_ARTWORK } from "@/constants/assets";
 import { THEME } from "@/constants/theme";
 import { useNowPlaying } from "@/hooks/useNowPlaying";
@@ -12,15 +13,20 @@ export function NowPlaying() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.artworkFrame}>
-        <Image
-          accessibilityIgnoresInvertColors
-          accessibilityLabel={`${title} artwork`}
-          onError={() => { if (artworkUrl) setFailedArtwork(artworkUrl); }}
-          resizeMode="cover"
-          source={remoteArtwork ? { uri: artworkUrl } : STATION_ARTWORK}
-          style={styles.artwork}
-        />
+      <View style={styles.artworkArea}>
+        <View style={styles.artworkFrame}>
+          <Image
+            accessibilityIgnoresInvertColors
+            accessibilityLabel={`${title} artwork`}
+            onError={() => { if (artworkUrl) setFailedArtwork(artworkUrl); }}
+            resizeMode="cover"
+            source={remoteArtwork ? { uri: artworkUrl } : STATION_ARTWORK}
+            style={styles.artwork}
+          />
+        </View>
+        <View style={styles.playerButton}>
+          <PlayerButton />
+        </View>
       </View>
       <Text style={styles.eyebrow}>NOW PLAYING</Text>
       <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>{title}</Text>
@@ -31,12 +37,18 @@ export function NowPlaying() {
 
 const styles = StyleSheet.create({
   container: { width: "100%", alignItems: "center", gap: THEME.spacing.sm },
+  artworkArea: {
+    position: "relative",
+    width: "100%",
+    maxWidth: 320,
+    paddingBottom: 32,
+    alignItems: "center",
+  },
   artworkFrame: {
     width: "100%",
     height: 320,
     maxWidth: 320,
     aspectRatio: 1,
-    marginBottom: THEME.spacing.md,
     backgroundColor: THEME.colors.surfaceMuted,
     borderColor: THEME.colors.border,
     borderWidth: 1,
@@ -46,6 +58,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.14,
     shadowRadius: 12,
     elevation: 3,
+  },
+  playerButton: {
+    position: "absolute",
+    bottom: 0,
+    zIndex: 1,
   },
   artwork: {
     width: "100%",
