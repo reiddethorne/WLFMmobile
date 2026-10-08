@@ -3,11 +3,9 @@ import {
   Animated,
   Easing,
   LayoutAnimation,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
-  UIManager,
   View,
 } from "react-native";
 
@@ -15,10 +13,6 @@ import { THEME } from "@/constants/theme";
 import { useSchedule } from "@/hooks/useSchedule";
 import { formatEventDate, formatEventTime } from "@/services/schedule";
 import type { TimedScheduleEvent } from "@/types/schedule";
-
-if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 interface ShowBannerProps {
   readonly accessibilityPrefix: string;

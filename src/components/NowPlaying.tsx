@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
     position: "relative",
     width: "100%",
     maxWidth: 320,
-    paddingBottom: 40,
+    paddingBottom: 36,
     alignItems: "center",
   },
   artworkFrame: {
