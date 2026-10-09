@@ -48,6 +48,21 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="blog"
+        options={{
+          title: "Blog",
+          tabBarLabel: "Blog",
+          tabBarAccessibilityLabel: "Blog tab",
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons
+              color={color}
+              name={focused ? "newspaper" : "newspaper-outline"}
+              size={size}
+            />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
