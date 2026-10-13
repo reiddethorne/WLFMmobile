@@ -26,7 +26,7 @@ export function ScheduleFilters({
         showsHorizontalScrollIndicator={false}
       >
         <DateChip
-          label="All dates"
+          label="All"
           onPress={() => onSelectDate(null)}
           selected={selectedDate === null}
         />

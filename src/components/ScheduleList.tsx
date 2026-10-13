@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, SectionList, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { ScheduleEventCard } from "@/components/ScheduleEventCard";
@@ -177,6 +177,9 @@ export function ScheduleList({
   const [query, setQuery] = useState("");
   const [searchVisible, setSearchVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [holdRefreshIndicator, setHoldRefreshIndicator] = useState(false);
+  const isDragging = useRef(false);
+  const releaseFrame = useRef<number | null>(null);
   const filterDates = useMemo(
     () => sections.map((section) => ({
       value: section.date,
@@ -195,6 +198,42 @@ export function ScheduleList({
       setSelectedDate(null);
     }
   }, [sections, selectedDate]);
+
+  const cancelIndicatorRelease = useCallback(() => {
+    if (releaseFrame.current === null) return;
+    cancelAnimationFrame(releaseFrame.current);
+    releaseFrame.current = null;
+  }, []);
+
+  const releaseIndicator = useCallback(() => {
+    if (releaseFrame.current !== null) return;
+    releaseFrame.current = requestAnimationFrame(() => {
+      releaseFrame.current = null;
+      setHoldRefreshIndicator(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isRefreshing && !isDragging.current) releaseIndicator();
+  }, [isRefreshing, releaseIndicator]);
+
+  useEffect(() => cancelIndicatorRelease, [cancelIndicatorRelease]);
+
+  const handleRefresh = useCallback(() => {
+    cancelIndicatorRelease();
+    setHoldRefreshIndicator(true);
+    onRefresh();
+  }, [cancelIndicatorRelease, onRefresh]);
+
+  const handleScrollBeginDrag = useCallback(() => {
+    cancelIndicatorRelease();
+    isDragging.current = true;
+  }, [cancelIndicatorRelease]);
+
+  const handleScrollEndDrag = useCallback(() => {
+    isDragging.current = false;
+    if (!isRefreshing) releaseIndicator();
+  }, [isRefreshing, releaseIndicator]);
 
   const clearFilters = () => {
     setQuery("");
@@ -280,11 +319,13 @@ export function ScheduleList({
         <RefreshControl
           accessibilityLabel="Refresh schedule"
           colors={[THEME.colors.text]}
-          onRefresh={onRefresh}
-          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          refreshing={isRefreshing || holdRefreshIndicator}
           tintColor={THEME.colors.text}
         />
       )}
+      onScrollBeginDrag={handleScrollBeginDrag}
+      onScrollEndDrag={handleScrollEndDrag}
       renderItem={({ item }) => (
         <View style={styles.contentWidth}>
           <ScheduleEventCard event={item} isOnAir={currentEvent?.id === item.id} />

@@ -183,8 +183,6 @@ const styles = StyleSheet.create({
     borderColor: THEME.colors.border,
     borderWidth: 1,
     borderTopWidth: 0,
-    borderLeftColor: THEME.colors.accent,
-    borderLeftWidth: 4,
     borderBottomLeftRadius: THEME.radius.md,
     borderBottomRightRadius: THEME.radius.md,
   },

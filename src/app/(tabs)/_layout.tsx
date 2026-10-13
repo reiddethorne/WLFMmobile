@@ -63,6 +63,21 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="more"
+        options={{
+          title: "More",
+          tabBarLabel: "More",
+          tabBarAccessibilityLabel: "More tab",
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons
+              color={color}
+              name={focused ? "ellipsis-horizontal-circle" : "ellipsis-horizontal-circle-outline"}
+              size={size}
+            />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
