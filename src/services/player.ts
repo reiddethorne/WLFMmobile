@@ -251,7 +251,13 @@ export async function playRadio(): Promise<void> {
         resetNowPlaying();
         player.setMediaItem({
           mediaId: STATION.id,
-          url: { uri: stream.url, headers: { "Icy-MetaData": "1" } },
+          url: {
+            uri: stream.url,
+            headers: {
+              "Icy-MetaData": "1",
+              "User-Agent": "WLFM/1.0 (Android)",
+            },
+          },
           mimeType: stream.mimeType,
           ...FALLBACK_NOW_PLAYING,
           artist: formatNativeArtist(FALLBACK_NOW_PLAYING.artist),
