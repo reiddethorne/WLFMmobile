@@ -13,7 +13,9 @@
       "bundleIdentifier": "dev.studentradio.wlfm",
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -33,6 +35,14 @@
           "backgroundColor": "#FFF8F2",
           "image": "./assets/images/wlfm-square.png",
           "imageWidth": 160
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "enableSceneSupport": true
+          }
         }
       ]
     ],

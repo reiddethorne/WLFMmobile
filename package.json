@@ -6,6 +6,7 @@
     "@expo/vector-icons": "^15.0.2",
     "@rntp/player": "5.9.2",
     "expo": "~57.0.26",
+    "expo-build-properties": "~57.0.22",
     "expo-constants": "~57.0.20",
     "expo-dev-client": "~57.0.19",
     "expo-linking": "~57.0.11",
