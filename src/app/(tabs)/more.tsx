@@ -1,16 +1,24 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { THEME } from "@/constants/theme";
 
+const STATION_SHARE_URL = "https://solwlfm.lawrence.edu/live/";
+
 const MORE_SECTIONS = [
   {
-    title: "Get involved",
+    title: "Station Information",
     options: [
-      { label: "About Us", icon: "people-outline" },
-      { label: "Contact", icon: "mail-outline" },
-      { label: "Share Station link", icon: "share-social-outline" },
+      { label: "Get Involved", icon: "people-outline" },
+      { label: "Contact Us", icon: "mail-outline" },
+      { label: " Our History", icon: "book-outline" },
+
+      {
+        label: "Share Station link",
+        icon: "share-social-outline",
+        shareUrl: STATION_SHARE_URL,
+      },
     ],
   },
   {
@@ -24,6 +32,21 @@ const MORE_SECTIONS = [
 ] as const;
 
 export default function More() {
+  const shareStation = async () => {
+    try {
+      await Share.share(
+        {
+          message: `Listen to WLFM live: ${STATION_SHARE_URL}`,
+          title: "Listen to WLFM live",
+          url: STATION_SHARE_URL,
+        },
+        { dialogTitle: "Share WLFM" },
+      );
+    } catch {
+      Alert.alert("Unable to share", "Please try again.");
+    }
+  };
+
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.screen}>
       <ScrollView
@@ -32,7 +55,6 @@ export default function More() {
       >
         <View style={styles.headingGroup}>
           <Text accessibilityRole="header" style={styles.title}>More</Text>
-          <Text style={styles.subtitle}>Settings and station information.</Text>
         </View>
 
         {MORE_SECTIONS.map((section) => (
@@ -41,35 +63,45 @@ export default function More() {
               {section.title}
             </Text>
             <View style={styles.optionsCard}>
-              {section.options.map((option, index) => (
-                <View
-                  accessible
-                  accessibilityLabel={option.label}
-                  key={option.label}
-                  style={[
-                    styles.optionRow,
-                    index < section.options.length - 1 && styles.optionDivider,
-                  ]}
-                >
-                  <View style={styles.optionIcon}>
+              {section.options.map((option, index) => {
+                const isShareStation = "shareUrl" in option;
+
+                return (
+                  <Pressable
+                    accessible
+                    accessibilityHint={
+                      isShareStation ? "Opens the system share sheet" : undefined
+                    }
+                    accessibilityLabel={option.label}
+                    accessibilityRole={isShareStation ? "button" : undefined}
+                    key={option.label}
+                    onPress={isShareStation ? () => void shareStation() : undefined}
+                    style={({ pressed }) => [
+                      styles.optionRow,
+                      index < section.options.length - 1 && styles.optionDivider,
+                      isShareStation && pressed && styles.optionRowPressed,
+                    ]}
+                  >
+                    <View style={styles.optionIcon}>
+                      <Ionicons
+                        accessibilityElementsHidden
+                        color={THEME.colors.accentPressed}
+                        importantForAccessibility="no-hide-descendants"
+                        name={option.icon}
+                        size={22}
+                      />
+                    </View>
+                    <Text style={styles.optionLabel}>{option.label}</Text>
                     <Ionicons
                       accessibilityElementsHidden
-                      color={THEME.colors.accentPressed}
+                      color={THEME.colors.muted}
                       importantForAccessibility="no-hide-descendants"
-                      name={option.icon}
-                      size={22}
+                      name="chevron-forward"
+                      size={20}
                     />
-                  </View>
-                  <Text style={styles.optionLabel}>{option.label}</Text>
-                  <Ionicons
-                    accessibilityElementsHidden
-                    color={THEME.colors.muted}
-                    importantForAccessibility="no-hide-descendants"
-                    name="chevron-forward"
-                    size={20}
-                  />
-                </View>
-              ))}
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
         ))}
@@ -138,6 +170,9 @@ const styles = StyleSheet.create({
   optionDivider: {
     borderBottomColor: THEME.colors.border,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  optionRowPressed: {
+    backgroundColor: THEME.colors.surfaceMuted,
   },
   optionIcon: {
     width: 36,
