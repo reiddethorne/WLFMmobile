@@ -1,10 +1,12 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import Constants from "expo-constants";
 import * as Linking from "expo-linking";
 import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { THEME } from "@/constants/theme";
 
+const APP_VERSION = Constants.expoConfig?.version ?? "Unknown";
 const CONTACT_URL = "https://solwlfm.lawrence.edu/contact/";
 const GET_INVOLVED_URL = "https://solwlfm.lawrence.edu/get-involved/";
 const HISTORY_URL = "https://solwlfm.lawrence.edu/history/";
@@ -130,6 +132,9 @@ export default function More() {
                 );
               })}
             </View>
+            {section.title === "Settings" ? (
+              <Text style={styles.versionText}>App version {APP_VERSION}</Text>
+            ) : null}
           </View>
         ))}
       </ScrollView>
@@ -174,6 +179,11 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.8,
     textTransform: "uppercase",
+  },
+  versionText: {
+    paddingTop: THEME.spacing.xs,
+    color: THEME.colors.muted,
+    textAlign: "center",
   },
   optionsCard: {
     backgroundColor: THEME.colors.surface,

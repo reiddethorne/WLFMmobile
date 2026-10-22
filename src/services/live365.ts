@@ -6,6 +6,7 @@ import type {
   Live365StationInfo,
   Live365Stream,
 } from "../types/live365";
+import { cleanMetadataText } from "../utils/metadataText";
 
 // Observed in Live365's public listener client and verified September 17, 2026.
 // This is an unauthenticated directory endpoint, not a broadcaster API contract.
@@ -37,9 +38,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function text(value: unknown): string | null {
-  return typeof value === "string" && value.trim().length > 0
-    ? value.trim()
-    : null;
+  return cleanMetadataText(value);
 }
 
 function httpsUrl(value: unknown): string | null {

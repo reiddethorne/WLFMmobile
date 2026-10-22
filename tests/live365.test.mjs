@@ -11,12 +11,15 @@ const temp = await mkdtemp(join(tmpdir(), "wlfm-live365-tests-"));
 after(() => rm(temp, { recursive: true, force: true }));
 for (const [source, output] of [
   ["../src/config/station.ts", "station.mjs"],
+  ["../src/utils/metadataText.ts", "metadataText.mjs"],
   ["../src/services/live365.ts", "live365.mjs"],
 ]) {
   const input = await readFile(new URL(source, import.meta.url), "utf8");
   const compiled = ts.transpileModule(input, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-  }).outputText.replace('"../config/station"', '"./station.mjs"');
+  }).outputText
+    .replace('"../config/station"', '"./station.mjs"')
+    .replace('"../utils/metadataText"', '"./metadataText.mjs"');
   await writeFile(join(temp, output), compiled);
 }
 const { parseStationInfo, getStationInfo, getStreamUrl, getNowPlaying, Live365Error } =
@@ -79,6 +82,19 @@ test("partial metadata and invalid bitrate/artwork remain usable", () => {
   });
   assert.deepEqual(parsed.nowPlaying, { title: "Song", artist: null, artworkUrl: null });
   assert.equal(parsed.preferredStream.bitrateKbps, null);
+});
+
+test("song and artist character references are decoded", () => {
+  const parsed = parseStationInfo({ ...fixture,
+    "current-track": { title: "Don&#39;t Let Me Down", artist: "Guns N&apos; Roses" },
+    "last-played": [{ title: "Rock &amp; Roll", artist: "D&apos;Angelo", start: null }],
+  });
+  assert.deepEqual(parsed.nowPlaying, {
+    title: "Don't Let Me Down", artist: "Guns N' Roses", artworkUrl: null,
+  });
+  assert.deepEqual(parsed.recentlyPlayed, [{
+    title: "Rock & Roll", artist: "D'Angelo", artworkUrl: null, startedAt: null,
+  }]);
 });
 
 test("verified primary URL is a fallback; unsupported entries are ignored", () => {

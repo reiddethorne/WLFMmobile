@@ -6,6 +6,7 @@ import type {
   StreamMetadataInput,
 } from "../types/metadata";
 import type { Live365NowPlaying, Live365RecentTrack } from "../types/live365";
+import { cleanMetadataText } from "../utils/metadataText";
 import { getStationInfo } from "./live365";
 
 export const FALLBACK_NOW_PLAYING = {
@@ -41,14 +42,8 @@ const observers = new Set<() => void>();
 const recentlyPlayedObservers = new Set<() => void>();
 let recentlyPlayedSnapshot: RecentlyPlayedSnapshot = { tracks: [], status: "loading" };
 
-function cleanText(value: string | null | undefined): string | null {
-  if (typeof value !== "string") return null;
-  const cleaned = value.trim().replace(/\s+/g, " ");
-  return cleaned.length > 0 ? cleaned : null;
-}
-
 function httpsArtwork(value: unknown): string | null {
-  const cleaned = typeof value === "string" ? cleanText(value) : null;
+  const cleaned = typeof value === "string" ? value.trim() : null;
   if (!cleaned) return null;
   try {
     const url = new URL(cleaned);
@@ -107,8 +102,8 @@ function updateNative(metadata: NativeMetadataUpdate) {
 
 function toTrack(value: Live365NowPlaying | StreamMetadataInput): TrackMetadata | null {
   const track = {
-    title: cleanText(value.title),
-    artist: cleanText(value.artist),
+    title: cleanMetadataText(value.title),
+    artist: cleanMetadataText(value.artist),
     artworkUrl: httpsArtwork(value.artworkUrl),
   };
   return track.title || track.artist || track.artworkUrl ? track : null;

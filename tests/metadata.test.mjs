@@ -13,9 +13,15 @@ async function runtime(t) {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
   }).outputText
     .replaceAll('"../constants/assets"', '"./assets.mjs"')
+    .replaceAll('"../utils/metadataText"', '"./metadataText.mjs"')
     .replaceAll('"./live365"', '"./live365.mjs"');
+  const textSource = await readFile(new URL("../src/utils/metadataText.ts", import.meta.url), "utf8");
+  const compiledText = ts.transpileModule(textSource, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+  }).outputText;
   await Promise.all([
     writeFile(join(folder, "metadata.mjs"), compiled),
+    writeFile(join(folder, "metadataText.mjs"), compiledText),
     writeFile(join(folder, "assets.mjs"), `export const STATION_ARTWORK = 42;`),
     writeFile(join(folder, "live365.mjs"), `
       export const controls = {calls:0, result:null, recent:[], load:null, signal:null};
@@ -118,6 +124,14 @@ test("stream title and artist outrank mismatched directory metadata", async (t) 
     title: "Different Song", artist: "Different Artist", artworkUrl: null, source: "stream",
   });
   assert.deepEqual(nativeUpdates.at(-1), { artworkUrl: 42 });
+});
+
+test("stream metadata decodes apostrophe character references", async (t) => {
+  const { metadata } = await runtime(t);
+  metadata.receiveStreamMetadata({ title: "Don&amp;#39;t Stop", artist: "Guns N&apos; Roses" });
+  assert.deepEqual(metadata.getNowPlayingSnapshot(), {
+    title: "Don't Stop", artist: "Guns N' Roses", artworkUrl: null, source: "stream",
+  });
 });
 
 test("matching Live365 data supplies artwork without overriding stream text", async (t) => {
