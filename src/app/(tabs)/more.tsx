@@ -1,18 +1,26 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import * as Linking from "expo-linking";
 import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { THEME } from "@/constants/theme";
 
+const CONTACT_URL = "https://solwlfm.lawrence.edu/contact/";
+const GET_INVOLVED_URL = "https://solwlfm.lawrence.edu/get-involved/";
+const HISTORY_URL = "https://solwlfm.lawrence.edu/history/";
 const STATION_SHARE_URL = "https://solwlfm.lawrence.edu/live/";
 
 const MORE_SECTIONS = [
   {
     title: "Station Information",
     options: [
-      { label: "Get Involved", icon: "people-outline" },
-      { label: "Contact Us", icon: "mail-outline" },
-      { label: " Our History", icon: "book-outline" },
+      {
+        label: "Get Involved",
+        icon: "people-outline",
+        url: GET_INVOLVED_URL,
+      },
+      { label: "Contact Us", icon: "mail-outline", url: CONTACT_URL },
+      { label: "Our History", icon: "book-outline", url: HISTORY_URL },
 
       {
         label: "Share Station link",
@@ -32,6 +40,14 @@ const MORE_SECTIONS = [
 ] as const;
 
 export default function More() {
+  const openExternalUrl = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Unable to open link", "Please try again.");
+    }
+  };
+
   const shareStation = async () => {
     try {
       await Share.share(
@@ -65,21 +81,32 @@ export default function More() {
             <View style={styles.optionsCard}>
               {section.options.map((option, index) => {
                 const isShareStation = "shareUrl" in option;
+                const isExternalLink = "url" in option;
+                const isInteractive = isShareStation || isExternalLink;
+                const onPress = isShareStation
+                  ? () => void shareStation()
+                  : isExternalLink
+                    ? () => void openExternalUrl(option.url)
+                    : undefined;
 
                 return (
                   <Pressable
                     accessible
                     accessibilityHint={
-                      isShareStation ? "Opens the system share sheet" : undefined
+                      isShareStation
+                        ? "Opens the system share sheet"
+                        : isExternalLink
+                          ? "Opens in your browser"
+                          : undefined
                     }
                     accessibilityLabel={option.label}
-                    accessibilityRole={isShareStation ? "button" : undefined}
+                    accessibilityRole={isInteractive ? "button" : undefined}
                     key={option.label}
-                    onPress={isShareStation ? () => void shareStation() : undefined}
+                    onPress={onPress}
                     style={({ pressed }) => [
                       styles.optionRow,
                       index < section.options.length - 1 && styles.optionDivider,
-                      isShareStation && pressed && styles.optionRowPressed,
+                      isInteractive && pressed && styles.optionRowPressed,
                     ]}
                   >
                     <View style={styles.optionIcon}>
