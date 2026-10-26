@@ -1,11 +1,11 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { STATION_ARTWORK } from "@/constants/assets";
 import { createThemedStyles } from "@/hooks/useThemedStyles";
 
 export default function Blog() {
-  const { styles, theme } = useStyles();
+  const { styles } = useStyles();
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.screen}>
@@ -17,12 +17,12 @@ export default function Blog() {
 
         <View style={styles.placeholder}>
           <View style={styles.iconFrame}>
-            <Ionicons
-              accessibilityElementsHidden
-              color={theme.colors.icon}
-              importantForAccessibility="no-hide-descendants"
-              name="newspaper-outline"
-              size={36}
+            <Image
+              accessibilityIgnoresInvertColors
+              accessibilityLabel="WLFM station logo"
+              resizeMode="contain"
+              source={STATION_ARTWORK}
+              style={styles.logo}
             />
           </View>
           <Text style={styles.placeholderTitle}>Stories are on the way</Text>
@@ -81,8 +81,11 @@ const useStyles = createThemedStyles((theme) => ({
     height: 64,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.surfaceMuted,
-    borderRadius: theme.radius.pill,
+  },
+  logo: {
+    width: 64,
+    height: 64,
+    borderRadius: theme.radius.md,
   },
   placeholderTitle: {
     color: theme.colors.text,

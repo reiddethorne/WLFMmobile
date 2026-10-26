@@ -1,104 +1,50 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { Tabs } from "expo-router";
-import { StyleSheet } from "react-native";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { DynamicColorIOS, Platform } from "react-native";
 
-import { createThemedStyles } from "@/hooks/useThemedStyles";
+import { useAppTheme } from "@/context/ThemeContext";
 
 export default function TabLayout() {
-  const { styles, theme } = useStyles();
+  const theme = useAppTheme();
+  const tabIconColor = Platform.OS === "ios"
+    ? DynamicColorIOS({
+        light: "#000000",
+        dark: theme.colors.accent,
+      })
+    : theme.colors.icon;
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        sceneStyle: styles.scene,
-        tabBarActiveTintColor: theme.colors.text,
-        tabBarInactiveTintColor: theme.colors.muted,
-        tabBarActiveBackgroundColor: theme.colors.surfaceMuted,
-        tabBarStyle: styles.tabBar,
-        tabBarItemStyle: styles.tabBarItem,
-        tabBarLabelStyle: styles.tabBarLabel,
-      }}
+    <NativeTabs
+      iconColor={tabIconColor}
+      tintColor={tabIconColor}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Radio",
-          tabBarLabel: "Radio",
-          tabBarAccessibilityLabel: "Radio tab",
-          tabBarIcon: ({ focused, size }) => (
-            <Ionicons
-              color={theme.colors.icon}
-              name={focused ? "radio" : "radio-outline"}
-              size={size}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="schedule"
-        options={{
-          title: "Schedule",
-          tabBarLabel: "Schedule",
-          tabBarAccessibilityLabel: "Schedule tab",
-          tabBarIcon: ({ focused, size }) => (
-            <Ionicons
-              color={theme.colors.icon}
-              name={focused ? "calendar" : "calendar-outline"}
-              size={size}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="blog"
-        options={{
-          title: "Blog",
-          tabBarLabel: "Blog",
-          tabBarAccessibilityLabel: "Blog tab",
-          tabBarIcon: ({ focused, size }) => (
-            <Ionicons
-              color={theme.colors.icon}
-              name={focused ? "newspaper" : "newspaper-outline"}
-              size={size}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="more"
-        options={{
-          title: "More",
-          tabBarLabel: "More",
-          tabBarAccessibilityLabel: "More tab",
-          tabBarIcon: ({ focused, size }) => (
-            <Ionicons
-              color={theme.colors.icon}
-              name={focused ? "ellipsis-horizontal-circle" : "ellipsis-horizontal-circle-outline"}
-              size={size}
-            />
-          ),
-        }}
-      />
-    </Tabs>
+      <NativeTabs.Trigger name="index" accessibilityLabel="Radio tab">
+        <NativeTabs.Trigger.Icon
+          sf={{ default: "radio", selected: "radio.fill" }}
+          md="radio"
+        />
+        <NativeTabs.Trigger.Label>Radio</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="schedule" accessibilityLabel="Schedule tab">
+        <NativeTabs.Trigger.Icon sf="calendar" md="calendar_month" />
+        <NativeTabs.Trigger.Label>Schedule</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="blog" accessibilityLabel="Blog tab">
+        <NativeTabs.Trigger.Icon
+          sf={{ default: "newspaper", selected: "newspaper.fill" }}
+          md="newspaper"
+        />
+        <NativeTabs.Trigger.Label>Blog</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="more" accessibilityLabel="More tab">
+        <NativeTabs.Trigger.Icon
+          sf={{ default: "ellipsis.circle", selected: "ellipsis.circle.fill" }}
+          md="more_horiz"
+        />
+        <NativeTabs.Trigger.Label>More</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }
-
-const useStyles = createThemedStyles((theme) => ({
-  scene: {
-    backgroundColor: theme.colors.background,
-  },
-  tabBar: {
-    minHeight: 56,
-    backgroundColor: theme.colors.surface,
-    borderTopColor: theme.colors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  tabBarItem: {
-    minHeight: 56,
-  },
-  tabBarLabel: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
-}));
