@@ -5,7 +5,7 @@ import { ActivityIndicator, Pressable, RefreshControl, SectionList, StyleSheet, 
 import { ScheduleEventCard } from "@/components/ScheduleEventCard";
 import { ScheduleFilters } from "@/components/ScheduleFilters";
 import { ScheduleSectionHeader } from "@/components/ScheduleSectionHeader";
-import { THEME } from "@/constants/theme";
+import { createThemedStyles } from "@/hooks/useThemedStyles";
 import type { ScheduleLoadError, ScheduleStatus } from "@/hooks/useSchedule";
 import {
   filterScheduleSections,
@@ -48,6 +48,8 @@ function Header({
   readonly query: string;
   readonly searchVisible: boolean;
 }) {
+  const { styles, theme } = useStyles();
+
   return (
     <View style={styles.header}>
       <View style={styles.headingRow}>
@@ -70,7 +72,7 @@ function Header({
             style={({ pressed }) => [styles.searchButton, pressed && styles.buttonPressed]}
           >
             <Ionicons
-              color={THEME.colors.text}
+              color={theme.colors.icon}
               name={searchVisible ? "close" : "search"}
               size={24}
             />
@@ -86,7 +88,7 @@ function Header({
           clearButtonMode="while-editing"
           onChangeText={onChangeQuery}
           placeholder="Search programs..."
-          placeholderTextColor={THEME.colors.muted}
+          placeholderTextColor={theme.colors.muted}
           returnKeyType="search"
           style={styles.searchInput}
           value={query}
@@ -109,6 +111,7 @@ function ScheduleHighlight({ currentEvent, nextEvent, sections }: Pick<
   ScheduleListProps,
   "currentEvent" | "nextEvent"
 > & { readonly sections: readonly ScheduleSection[] }) {
+  const { styles } = useStyles();
   const includesEvent = (event: TimedScheduleEvent | null) => event !== null && sections.some(
     (section) => section.data.some((item) => item.id === event.id),
   );
@@ -143,6 +146,8 @@ function ScheduleHighlight({ currentEvent, nextEvent, sections }: Pick<
 }
 
 function RetryButton({ label, onPress }: { readonly label: string; readonly onPress: () => void }) {
+  const { styles } = useStyles();
+
   return (
     <Pressable
       accessibilityLabel={`${label} loading the schedule`}
@@ -156,6 +161,8 @@ function RetryButton({ label, onPress }: { readonly label: string; readonly onPr
 }
 
 function ScreenHeading() {
+  const { styles } = useStyles();
+
   return (
     <View style={styles.header}>
       <Text accessibilityRole="header" style={styles.heading}>Schedule</Text>
@@ -174,6 +181,7 @@ export function ScheduleList({
   onRefresh,
   onRetry,
 }: ScheduleListProps) {
+  const { styles, theme } = useStyles();
   const [query, setQuery] = useState("");
   const [searchVisible, setSearchVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -250,7 +258,7 @@ export function ScheduleList({
       <View style={styles.stateScreen}>
         <ScreenHeading />
         <View accessibilityLiveRegion="polite" style={styles.centeredState}>
-          <ActivityIndicator accessibilityLabel="Loading schedule" color={THEME.colors.text} size="large" />
+          <ActivityIndicator accessibilityLabel="Loading schedule" color={theme.colors.text} size="large" />
           <Text style={styles.stateTitle}>Loading schedule…</Text>
         </View>
       </View>
@@ -318,10 +326,10 @@ export function ScheduleList({
       refreshControl={(
         <RefreshControl
           accessibilityLabel="Refresh schedule"
-          colors={[THEME.colors.text]}
+          colors={[theme.colors.text]}
           onRefresh={handleRefresh}
           refreshing={isRefreshing || holdRefreshIndicator}
-          tintColor={THEME.colors.text}
+          tintColor={theme.colors.text}
         />
       )}
       onScrollBeginDrag={handleScrollBeginDrag}
@@ -338,22 +346,22 @@ export function ScheduleList({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((theme) => ({
   stateScreen: {
     flex: 1,
   },
   header: {
     width: "100%",
-    maxWidth: THEME.contentMaxWidth,
-    paddingHorizontal: THEME.spacing.lg,
-    paddingTop: THEME.spacing.xl,
-    paddingBottom: THEME.spacing.sm,
-    gap: THEME.spacing.sm,
+    maxWidth: theme.contentMaxWidth,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.xl,
+    paddingBottom: theme.spacing.sm,
+    gap: theme.spacing.sm,
     alignSelf: "center",
   },
   heading: {
-    color: THEME.colors.text,
-    fontSize: THEME.fontSize.heading,
+    color: theme.colors.text,
+    fontSize: theme.fontSize.heading,
     lineHeight: 44,
     fontWeight: "800",
   },
@@ -361,19 +369,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: THEME.spacing.md,
+    gap: theme.spacing.md,
   },
   headingActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: THEME.spacing.sm,
+    gap: theme.spacing.sm,
   },
   clearFiltersButton: {
     minHeight: 44,
     justifyContent: "center",
   },
   clearFiltersText: {
-    color: THEME.colors.text,
+    color: theme.colors.text,
     fontSize: 14,
     fontWeight: "700",
     textDecorationLine: "underline",
@@ -383,146 +391,146 @@ const styles = StyleSheet.create({
     height: 48,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: THEME.colors.surface,
-    borderColor: THEME.colors.border,
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
     borderWidth: 1,
-    borderRadius: THEME.radius.pill,
+    borderRadius: theme.radius.pill,
   },
   searchInput: {
     width: "100%",
     maxWidth: 400,
     minHeight: 48,
-    paddingHorizontal: THEME.spacing.md,
+    paddingHorizontal: theme.spacing.md,
     alignSelf: "flex-end",
-    color: THEME.colors.text,
-    fontSize: THEME.fontSize.body,
-    backgroundColor: THEME.colors.surface,
-    borderColor: THEME.colors.border,
+    color: theme.colors.text,
+    fontSize: theme.fontSize.body,
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
     borderWidth: 1,
-    borderRadius: THEME.radius.md,
+    borderRadius: theme.radius.md,
   },
   subheading: {
-    color: THEME.colors.muted,
-    fontSize: THEME.fontSize.body,
+    color: theme.colors.muted,
+    fontSize: theme.fontSize.body,
     lineHeight: 24,
   },
   highlight: {
-    padding: THEME.spacing.lg,
-    gap: THEME.spacing.xs,
-    backgroundColor: THEME.colors.surfaceMuted,
-    borderColor: THEME.colors.border,
+    padding: theme.spacing.lg,
+    gap: theme.spacing.xs,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderColor: theme.colors.border,
     borderWidth: 1,
-    borderRadius: THEME.radius.lg,
+    borderRadius: theme.radius.lg,
   },
   highlightContainer: {
     width: "100%",
-    maxWidth: THEME.contentMaxWidth,
-    paddingHorizontal: THEME.spacing.lg,
-    paddingTop: THEME.spacing.md,
+    maxWidth: theme.contentMaxWidth,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
     alignSelf: "center",
   },
   liveHighlight: {
-    backgroundColor: THEME.colors.liveSurface,
-    borderColor: THEME.colors.live,
+    backgroundColor: theme.colors.liveSurface,
+    borderColor: theme.colors.live,
   },
   eyebrow: {
-    color: THEME.colors.muted,
-    fontSize: THEME.fontSize.caption,
+    color: theme.colors.muted,
+    fontSize: theme.fontSize.caption,
     fontWeight: "800",
     letterSpacing: 1.5,
   },
   liveText: {
-    color: THEME.colors.live,
+    color: theme.colors.live,
   },
   highlightTitle: {
-    color: THEME.colors.text,
+    color: theme.colors.text,
     fontSize: 20,
     lineHeight: 28,
     fontWeight: "700",
   },
   highlightDetail: {
-    color: THEME.colors.muted,
-    fontSize: THEME.fontSize.body,
+    color: theme.colors.muted,
+    fontSize: theme.fontSize.body,
     lineHeight: 24,
   },
   refreshWarning: {
-    marginTop: THEME.spacing.md,
-    padding: THEME.spacing.md,
-    gap: THEME.spacing.md,
-    backgroundColor: THEME.colors.liveSurface,
-    borderColor: THEME.colors.error,
+    marginTop: theme.spacing.md,
+    padding: theme.spacing.md,
+    gap: theme.spacing.md,
+    backgroundColor: theme.colors.liveSurface,
+    borderColor: theme.colors.error,
     borderWidth: 1,
-    borderRadius: THEME.radius.md,
+    borderRadius: theme.radius.md,
   },
   warningText: {
-    gap: THEME.spacing.xs,
+    gap: theme.spacing.xs,
   },
   warningTitle: {
-    color: THEME.colors.error,
-    fontSize: THEME.fontSize.body,
+    color: theme.colors.error,
+    fontSize: theme.fontSize.body,
     lineHeight: 24,
     fontWeight: "700",
   },
   warningMessage: {
-    color: THEME.colors.text,
-    fontSize: THEME.fontSize.body,
+    color: theme.colors.text,
+    fontSize: theme.fontSize.body,
     lineHeight: 24,
   },
   button: {
     minHeight: 52,
-    paddingHorizontal: THEME.spacing.lg,
-    paddingVertical: THEME.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "flex-start",
-    backgroundColor: THEME.colors.text,
-    borderRadius: THEME.radius.pill,
+    backgroundColor: theme.colors.text,
+    borderRadius: theme.radius.pill,
   },
   buttonPressed: {
     opacity: 0.75,
   },
   buttonText: {
-    color: THEME.colors.surface,
-    fontSize: THEME.fontSize.body,
+    color: theme.colors.surface,
+    fontSize: theme.fontSize.body,
     fontWeight: "700",
   },
   centeredState: {
     width: "100%",
-    maxWidth: THEME.contentMaxWidth,
-    paddingHorizontal: THEME.spacing.lg,
-    paddingVertical: THEME.spacing.xxl,
+    maxWidth: theme.contentMaxWidth,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.xxl,
     alignItems: "flex-start",
-    gap: THEME.spacing.md,
+    gap: theme.spacing.md,
     alignSelf: "center",
   },
   emptyState: {
     width: "100%",
-    maxWidth: THEME.contentMaxWidth,
-    paddingHorizontal: THEME.spacing.lg,
-    paddingVertical: THEME.spacing.xl,
-    gap: THEME.spacing.md,
+    maxWidth: theme.contentMaxWidth,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.xl,
+    gap: theme.spacing.md,
     alignSelf: "center",
   },
   stateTitle: {
-    color: THEME.colors.text,
-    fontSize: THEME.fontSize.title,
+    color: theme.colors.text,
+    fontSize: theme.fontSize.title,
     lineHeight: 36,
     fontWeight: "700",
   },
   stateMessage: {
-    color: THEME.colors.muted,
-    fontSize: THEME.fontSize.body,
+    color: theme.colors.muted,
+    fontSize: theme.fontSize.body,
     lineHeight: 24,
   },
   listContent: {
-    paddingBottom: THEME.spacing.xxxl,
+    paddingBottom: theme.spacing.xxxl,
   },
   emptyListContent: {
     flexGrow: 1,
   },
   contentWidth: {
     width: "100%",
-    maxWidth: THEME.contentMaxWidth,
+    maxWidth: theme.contentMaxWidth,
     alignSelf: "center",
   },
-});
+}));

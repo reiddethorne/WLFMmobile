@@ -1,19 +1,21 @@
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { THEME } from "@/constants/theme";
+import { createThemedStyles } from "@/hooks/useThemedStyles";
 import { useRadioPlayer } from "@/hooks/useRadioPlayer";
 import type { RadioPlayerStatus } from "@/types/player";
 
-const STATUS: Record<RadioPlayerStatus, { readonly label: string; readonly color: string }> = {
-  idle: { label: "Ready to listen", color: THEME.colors.muted },
-  connecting: { label: "Connecting to WLFM…", color: THEME.colors.warning },
-  buffering: { label: "Buffering live audio…", color: THEME.colors.warning },
-  playing: { label: "Playing live", color: THEME.colors.success },
-  paused: { label: "Playback paused", color: THEME.colors.muted },
-  error: { label: "Station unavailable", color: THEME.colors.error },
+const STATUS: Record<RadioPlayerStatus, string> = {
+  idle: "Ready to listen",
+  connecting: "Connecting to WLFM…",
+  buffering: "Buffering live audio…",
+  playing: "Playing live",
+  paused: "Playback paused",
+  error: "Station unavailable",
 };
 
 function TransportIcon({ mode }: { readonly mode: "play" | "pause" | "retry" }) {
+  const { styles } = useStyles();
+
   if (mode === "pause") {
     return (
       <View style={styles.pauseIcon}>
@@ -27,13 +29,14 @@ function TransportIcon({ mode }: { readonly mode: "play" | "pause" | "retry" }) 
 }
 
 export function PlayerButton() {
+  const { styles, theme } = useStyles();
   const { status, error, canPause, togglePlayback } = useRadioPlayer();
   const loading = status === "connecting" || status === "buffering";
   const mode = canPause ? "pause" : status === "error" ? "retry" : "play";
   const actionText = mode === "pause" ? "Pause" : mode === "retry" ? "Retry" : "Play";
   const label = mode === "pause" ? "Pause live radio" : mode === "retry" ? "Retry live radio" : "Play live radio";
   const unsupported = Platform.OS === "web";
-  const statusInfo = STATUS[status];
+  const statusText = STATUS[status];
 
   return (
     <View style={styles.container}>
@@ -51,40 +54,40 @@ export function PlayerButton() {
         ]}
       >
         <View style={styles.iconSlot}>
-          {loading ? <ActivityIndicator color={THEME.colors.surface} size="large" /> : <TransportIcon mode={mode} />}
+          {loading ? <ActivityIndicator color={theme.colors.surface} size="large" /> : <TransportIcon mode={mode} />}
         </View>
         <Text style={styles.buttonText}>{actionText}</Text>
       </Pressable>
       {/*<View style={styles.statusRow}> //this is the status text, I might want to add it back in later, but for now it's not needed
-        <View style={[styles.statusDot, { backgroundColor: statusInfo.color }]} />
+        <View style={styles.statusDot} />
         <Text accessibilityLiveRegion="polite" style={[styles.status, status === "error" && styles.errorText]}>
-          {error ?? statusInfo.label}
+          {error ?? statusText}
         </Text>
       </View>*/}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { alignItems: "center", gap: THEME.spacing.sm, paddingTop: THEME.spacing.sm },
+const useStyles = createThemedStyles((theme) => ({
+  container: { alignItems: "center", gap: theme.spacing.sm, paddingTop: theme.spacing.sm },
   button: {
     width: 176,
     minHeight: 64,
-    paddingHorizontal: THEME.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: THEME.spacing.md,
-    backgroundColor: THEME.colors.accent,
-    borderRadius: THEME.radius.pill,
-    shadowColor: THEME.shadow.color,
+    gap: theme.spacing.md,
+    backgroundColor: theme.colors.accent,
+    borderRadius: theme.radius.pill,
+    shadowColor: theme.shadow.color,
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 4,
   },
-  buttonPressed: { backgroundColor: THEME.colors.accentPressed, transform: [{ scale: 0.97 }] },
-  buttonDisabled: { backgroundColor: THEME.colors.disabled, shadowOpacity: 0 },
+  buttonPressed: { backgroundColor: theme.colors.accentPressed, transform: [{ scale: 0.97 }] },
+  buttonDisabled: { backgroundColor: theme.colors.disabled, shadowOpacity: 0 },
   iconSlot: {
     width: 32,
     height: 48,
@@ -99,16 +102,16 @@ const styles = StyleSheet.create({
     borderLeftWidth: 22,
     borderTopColor: "transparent",
     borderBottomColor: "transparent",
-    borderLeftColor: THEME.colors.surface,
+    borderLeftColor: theme.colors.surface,
     transform: [{ translateX: 2 }],
   },
   pauseIcon: { height: 28, flexDirection: "row", alignItems: "center", gap: 8 },
-  pauseBar: { width: 8, height: 28, backgroundColor: THEME.colors.surface, borderRadius: 2 },
-  retryIcon: { color: THEME.colors.surface, fontSize: 42, lineHeight: 48, fontWeight: "500" },
+  pauseBar: { width: 8, height: 28, backgroundColor: theme.colors.surface, borderRadius: 2 },
+  retryIcon: { color: theme.colors.surface, fontSize: 42, lineHeight: 48, fontWeight: "500" },
   buttonText: {
     width: 52,
-    color: THEME.colors.surface,
-    fontSize: THEME.fontSize.body,
+    color: theme.colors.surface,
+    fontSize: theme.fontSize.body,
     lineHeight: 24,
     fontWeight: "700",
     textAlign: "left",
@@ -116,13 +119,13 @@ const styles = StyleSheet.create({
   statusRow: {
     minHeight: 32,
     maxWidth: "100%",
-    paddingHorizontal: THEME.spacing.md,
+    paddingHorizontal: theme.spacing.md,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: THEME.spacing.sm,
+    gap: theme.spacing.sm,
   },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  status: { flexShrink: 1, color: THEME.colors.muted, fontSize: 14, lineHeight: 20, textAlign: "center" },
-  errorText: { color: THEME.colors.error },
-});
+  statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.muted },
+  status: { flexShrink: 1, color: theme.colors.muted, fontSize: 14, lineHeight: 20, textAlign: "center" },
+  errorText: { color: theme.colors.error },
+}));

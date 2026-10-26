@@ -2,11 +2,12 @@ import { useState } from "react";
 import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 
 import { STATION_ARTWORK } from "@/constants/assets";
-import { THEME } from "@/constants/theme";
+import { createThemedStyles } from "@/hooks/useThemedStyles";
 import { useRecentlyPlayed } from "@/hooks/useRecentlyPlayed";
 import type { Live365RecentTrack } from "@/types/live365";
 
 function TrackRow({ track, last }: { readonly track: Live365RecentTrack; readonly last: boolean }) {
+  const { styles } = useStyles();
   const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
   const remoteArtwork = track.artworkUrl !== null && track.artworkUrl !== failedArtwork;
   const title = track.title ?? "Untitled";
@@ -35,6 +36,7 @@ function TrackRow({ track, last }: { readonly track: Live365RecentTrack; readonl
 
 export function RecentlyPlayed() {
   const { tracks, status } = useRecentlyPlayed();
+  const { styles, theme } = useStyles();
 
   return (
     <View style={styles.container}>
@@ -49,7 +51,7 @@ export function RecentlyPlayed() {
         ))}
         {tracks.length === 0 && status === "loading" && (
           <View accessibilityLabel="Loading recently played tracks" style={styles.message}>
-            <ActivityIndicator color={THEME.colors.accent} />
+            <ActivityIndicator color={theme.colors.accent} />
             <Text style={styles.messageText}>Loading recent tracks…</Text>
           </View>
         )}
@@ -66,64 +68,64 @@ export function RecentlyPlayed() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((theme) => ({
   container: {
     width: "100%",
-    marginTop: THEME.spacing.xl,
-    gap: THEME.spacing.sm,
+    marginTop: theme.spacing.xl,
+    gap: theme.spacing.sm,
   },
   heading: {
-    color: THEME.colors.accent,
-    fontSize: THEME.fontSize.caption,
+    color: theme.colors.accent,
+    fontSize: theme.fontSize.caption,
     fontWeight: "800",
     letterSpacing: 1.8,
   },
   list: {
     overflow: "hidden",
-    backgroundColor: THEME.colors.surface,
-    borderColor: THEME.colors.border,
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
     borderWidth: 1,
-    borderRadius: THEME.radius.md,
+    borderRadius: theme.radius.md,
   },
   row: {
     minHeight: 72,
-    padding: THEME.spacing.sm,
+    padding: theme.spacing.sm,
     flexDirection: "row",
     alignItems: "center",
-    gap: THEME.spacing.md,
+    gap: theme.spacing.md,
   },
   rowBorder: {
-    borderBottomColor: THEME.colors.border,
+    borderBottomColor: theme.colors.border,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   artwork: {
     width: 56,
     height: 56,
     flexShrink: 0,
-    backgroundColor: THEME.colors.surfaceMuted,
-    borderRadius: THEME.radius.md,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderRadius: theme.radius.md,
   },
-  trackText: { flex: 1, minWidth: 0, gap: THEME.spacing.xs },
+  trackText: { flex: 1, minWidth: 0, gap: theme.spacing.xs },
   title: {
-    color: THEME.colors.text,
-    fontSize: THEME.fontSize.body,
+    color: theme.colors.text,
+    fontSize: theme.fontSize.body,
     lineHeight: 22,
     fontWeight: "700",
   },
-  artist: { color: THEME.colors.muted, fontSize: 14, lineHeight: 20 },
+  artist: { color: theme.colors.muted, fontSize: 14, lineHeight: 20 },
   message: {
     minHeight: 88,
-    padding: THEME.spacing.md,
+    padding: theme.spacing.md,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: THEME.spacing.sm,
+    gap: theme.spacing.sm,
   },
   messageText: {
-    padding: THEME.spacing.md,
-    color: THEME.colors.muted,
+    padding: theme.spacing.md,
+    color: theme.colors.muted,
     fontSize: 14,
     lineHeight: 20,
     textAlign: "center",
   },
-});
+}));

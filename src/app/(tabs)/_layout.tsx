@@ -2,17 +2,19 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 import { StyleSheet } from "react-native";
 
-import { THEME } from "@/constants/theme";
+import { createThemedStyles } from "@/hooks/useThemedStyles";
 
 export default function TabLayout() {
+  const { styles, theme } = useStyles();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         sceneStyle: styles.scene,
-        tabBarActiveTintColor: THEME.colors.text,
-        tabBarInactiveTintColor: THEME.colors.muted,
-        tabBarActiveBackgroundColor: THEME.colors.surfaceMuted,
+        tabBarActiveTintColor: theme.colors.text,
+        tabBarInactiveTintColor: theme.colors.muted,
+        tabBarActiveBackgroundColor: theme.colors.surfaceMuted,
         tabBarStyle: styles.tabBar,
         tabBarItemStyle: styles.tabBarItem,
         tabBarLabelStyle: styles.tabBarLabel,
@@ -24,9 +26,9 @@ export default function TabLayout() {
           title: "Radio",
           tabBarLabel: "Radio",
           tabBarAccessibilityLabel: "Radio tab",
-          tabBarIcon: ({ color, focused, size }) => (
+          tabBarIcon: ({ focused, size }) => (
             <Ionicons
-              color={color}
+              color={theme.colors.icon}
               name={focused ? "radio" : "radio-outline"}
               size={size}
             />
@@ -39,9 +41,9 @@ export default function TabLayout() {
           title: "Schedule",
           tabBarLabel: "Schedule",
           tabBarAccessibilityLabel: "Schedule tab",
-          tabBarIcon: ({ color, focused, size }) => (
+          tabBarIcon: ({ focused, size }) => (
             <Ionicons
-              color={color}
+              color={theme.colors.icon}
               name={focused ? "calendar" : "calendar-outline"}
               size={size}
             />
@@ -54,9 +56,9 @@ export default function TabLayout() {
           title: "Blog",
           tabBarLabel: "Blog",
           tabBarAccessibilityLabel: "Blog tab",
-          tabBarIcon: ({ color, focused, size }) => (
+          tabBarIcon: ({ focused, size }) => (
             <Ionicons
-              color={color}
+              color={theme.colors.icon}
               name={focused ? "newspaper" : "newspaper-outline"}
               size={size}
             />
@@ -69,9 +71,9 @@ export default function TabLayout() {
           title: "More",
           tabBarLabel: "More",
           tabBarAccessibilityLabel: "More tab",
-          tabBarIcon: ({ color, focused, size }) => (
+          tabBarIcon: ({ focused, size }) => (
             <Ionicons
-              color={color}
+              color={theme.colors.icon}
               name={focused ? "ellipsis-horizontal-circle" : "ellipsis-horizontal-circle-outline"}
               size={size}
             />
@@ -82,14 +84,14 @@ export default function TabLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((theme) => ({
   scene: {
-    backgroundColor: THEME.colors.background,
+    backgroundColor: theme.colors.background,
   },
   tabBar: {
     minHeight: 56,
-    backgroundColor: THEME.colors.surface,
-    borderTopColor: THEME.colors.border,
+    backgroundColor: theme.colors.surface,
+    borderTopColor: theme.colors.border,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   tabBarItem: {
@@ -99,4 +101,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
-});
+}));

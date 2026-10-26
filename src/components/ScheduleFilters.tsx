@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { THEME } from "@/constants/theme";
+import { createThemedStyles } from "@/hooks/useThemedStyles";
 
 interface ScheduleFilterDate {
   readonly value: string;
@@ -18,6 +18,8 @@ export function ScheduleFilters({
   selectedDate,
   onSelectDate,
 }: ScheduleFiltersProps) {
+  const { styles } = useStyles();
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -48,6 +50,8 @@ function DateChip({ label, selected, onPress }: {
   readonly selected: boolean;
   readonly onPress: () => void;
 }) {
+  const { styles } = useStyles();
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -64,39 +68,39 @@ function DateChip({ label, selected, onPress }: {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((theme) => ({
   container: {
     width: "100%",
-    gap: THEME.spacing.sm,
+    gap: theme.spacing.sm,
     alignSelf: "stretch",
   },
   dateList: {
-    paddingLeft: THEME.spacing.lg,
-    gap: THEME.spacing.sm,
+    paddingLeft: theme.spacing.lg,
+    gap: theme.spacing.sm,
   },
   dateChip: {
     minHeight: 44,
-    paddingHorizontal: THEME.spacing.md,
+    paddingHorizontal: theme.spacing.md,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: THEME.colors.surface,
-    borderColor: THEME.colors.border,
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
     borderWidth: 1,
-    borderRadius: THEME.radius.pill,
+    borderRadius: theme.radius.pill,
   },
   selectedDateChip: {
-    backgroundColor: THEME.colors.text,
-    borderColor: THEME.colors.text,
+    backgroundColor: theme.colors.text,
+    borderColor: theme.colors.text,
   },
   dateChipText: {
-    color: THEME.colors.text,
+    color: theme.colors.text,
     fontSize: 14,
     fontWeight: "700",
   },
   selectedDateChipText: {
-    color: THEME.colors.surface,
+    color: theme.colors.surface,
   },
   pressed: {
     opacity: 0.7,
   },
-});
+}));

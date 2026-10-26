@@ -2,11 +2,12 @@ import { StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScheduleList } from "@/components/ScheduleList";
-import { THEME } from "@/constants/theme";
+import { createThemedStyles } from "@/hooks/useThemedStyles";
 import { useSchedule } from "@/hooks/useSchedule";
 
 export default function Schedule() {
   const schedule = useSchedule();
+  const { styles } = useStyles();
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.screen}>
@@ -24,9 +25,9 @@ export default function Schedule() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((theme) => ({
   screen: {
     flex: 1,
-    backgroundColor: THEME.colors.background,
+    backgroundColor: theme.colors.background,
   },
-});
+}));

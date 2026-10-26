@@ -3,10 +3,11 @@ import { Image, StyleSheet, Text, View } from "react-native";
 
 import { PlayerButton } from "@/components/PlayerButton";
 import { STATION_ARTWORK } from "@/constants/assets";
-import { THEME } from "@/constants/theme";
+import { createThemedStyles } from "@/hooks/useThemedStyles";
 import { useNowPlaying } from "@/hooks/useNowPlaying";
 
 export function NowPlaying() {
+  const { styles } = useStyles();
   const { title, artist, artworkUrl } = useNowPlaying();
   const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
   const remoteArtwork = artworkUrl !== null && artworkUrl !== failedArtwork;
@@ -35,8 +36,8 @@ export function NowPlaying() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { width: "100%", alignItems: "center", gap: THEME.spacing.sm },
+const useStyles = createThemedStyles((theme) => ({
+  container: { width: "100%", alignItems: "center", gap: theme.spacing.sm },
   artworkArea: {
     position: "relative",
     width: "100%",
@@ -49,11 +50,11 @@ const styles = StyleSheet.create({
     height: 320,
     maxWidth: 320,
     aspectRatio: 1,
-    backgroundColor: THEME.colors.surfaceMuted,
-    borderColor: THEME.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderColor: theme.colors.border,
     borderWidth: 1,
-    borderRadius: THEME.radius.md,
-    shadowColor: THEME.shadow.color,
+    borderRadius: theme.radius.md,
+    shadowColor: theme.shadow.color,
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.14,
     shadowRadius: 12,
@@ -68,7 +69,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  eyebrow: { color: THEME.colors.accent, fontSize: THEME.fontSize.caption, fontWeight: "800", letterSpacing: 1.8 },
-  title: { color: THEME.colors.text, fontSize: THEME.fontSize.title, lineHeight: 34, fontWeight: "700", textAlign: "center" },
-  artist: { color: THEME.colors.muted, fontSize: 18, lineHeight: 26, textAlign: "center" },
-});
+  eyebrow: { color: theme.colors.accent, fontSize: theme.fontSize.caption, fontWeight: "800", letterSpacing: 1.8 },
+  title: { color: theme.colors.text, fontSize: theme.fontSize.title, lineHeight: 34, fontWeight: "700", textAlign: "center" },
+  artist: { color: theme.colors.muted, fontSize: 18, lineHeight: 26, textAlign: "center" },
+}));

@@ -4,12 +4,11 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Live365Diagnostics } from "@/components/Live365Diagnostics";
 import { RadioPlayer } from "@/components/RadioPlayer";
 import { StationHeader } from "@/components/StationHeader";
-import { THEME } from "@/constants/theme";
-
-const TOP_BAR_BACKGROUND = "rgba(255, 248, 242, 0.94)";
+import { createThemedStyles } from "@/hooks/useThemedStyles";
 
 export default function Index() {
   const insets = useSafeAreaInsets();
+  const { styles } = useStyles();
 
   return (
     <View style={styles.screen}>
@@ -34,10 +33,10 @@ export default function Index() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((theme) => ({
   screen: {
     flex: 1,
-    backgroundColor: THEME.colors.background,
+    backgroundColor: theme.colors.background,
   },
   safeArea: {
     flex: 1,
@@ -47,27 +46,27 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     left: 0,
-    backgroundColor: TOP_BAR_BACKGROUND,
+    backgroundColor: theme.colors.topBar,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: THEME.spacing.xxxl,
+    paddingBottom: theme.spacing.xxxl,
   },
   stickyHeader: {
     zIndex: 1,
     width: "100%",
-    paddingVertical: THEME.spacing.sm,
+    paddingVertical: theme.spacing.sm,
     alignItems: "center",
-    backgroundColor: TOP_BAR_BACKGROUND,
-    borderBottomColor: THEME.colors.border,
+    backgroundColor: theme.colors.topBar,
+    borderBottomColor: theme.colors.border,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  headerContent: { width: "100%", paddingHorizontal: THEME.spacing.md },
+  headerContent: { width: "100%", paddingHorizontal: theme.spacing.md },
   content: {
     width: "100%",
-    maxWidth: THEME.contentMaxWidth,
-    paddingHorizontal: THEME.spacing.md,
-    gap: THEME.spacing.xl,
+    maxWidth: theme.contentMaxWidth,
+    paddingHorizontal: theme.spacing.md,
+    gap: theme.spacing.xl,
     alignSelf: "center",
   },
-});
+}));

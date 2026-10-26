@@ -2,9 +2,11 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { THEME } from "@/constants/theme";
+import { createThemedStyles } from "@/hooks/useThemedStyles";
 
 export default function Blog() {
+  const { styles, theme } = useStyles();
+
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.screen}>
       <View style={styles.content}>
@@ -17,7 +19,7 @@ export default function Blog() {
           <View style={styles.iconFrame}>
             <Ionicons
               accessibilityElementsHidden
-              color={THEME.colors.accentPressed}
+              color={theme.colors.icon}
               importantForAccessibility="no-hide-descendants"
               name="newspaper-outline"
               size={36}
@@ -33,66 +35,66 @@ export default function Blog() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((theme) => ({
   screen: {
     flex: 1,
-    backgroundColor: THEME.colors.background,
+    backgroundColor: theme.colors.background,
   },
   content: {
     width: "100%",
-    maxWidth: THEME.contentMaxWidth,
-    paddingHorizontal: THEME.spacing.md,
-    paddingTop: THEME.spacing.xl,
-    gap: THEME.spacing.xl,
+    maxWidth: theme.contentMaxWidth,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl,
+    gap: theme.spacing.xl,
     alignSelf: "center",
   },
   headingGroup: {
-    gap: THEME.spacing.sm,
+    gap: theme.spacing.sm,
   },
   title: {
-    color: THEME.colors.text,
-    fontSize: THEME.fontSize.heading,
+    color: theme.colors.text,
+    fontSize: theme.fontSize.heading,
     fontWeight: "800",
   },
   subtitle: {
-    color: THEME.colors.muted,
-    fontSize: THEME.fontSize.body,
+    color: theme.colors.muted,
+    fontSize: theme.fontSize.body,
     lineHeight: 24,
   },
   placeholder: {
-    paddingHorizontal: THEME.spacing.lg,
-    paddingVertical: THEME.spacing.xl,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.xl,
     alignItems: "center",
-    gap: THEME.spacing.md,
-    backgroundColor: THEME.colors.surface,
-    borderColor: THEME.colors.border,
+    gap: theme.spacing.md,
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: THEME.radius.lg,
-    shadowColor: THEME.shadow.color,
-    shadowOffset: THEME.shadow.offset,
-    shadowOpacity: THEME.shadow.opacity,
-    shadowRadius: THEME.shadow.radius,
-    elevation: THEME.shadow.elevation,
+    borderRadius: theme.radius.lg,
+    shadowColor: theme.shadow.color,
+    shadowOffset: theme.shadow.offset,
+    shadowOpacity: theme.shadow.opacity,
+    shadowRadius: theme.shadow.radius,
+    elevation: theme.shadow.elevation,
   },
   iconFrame: {
     width: 64,
     height: 64,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: THEME.colors.surfaceMuted,
-    borderRadius: THEME.radius.pill,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderRadius: theme.radius.pill,
   },
   placeholderTitle: {
-    color: THEME.colors.text,
+    color: theme.colors.text,
     fontSize: 22,
     fontWeight: "800",
     textAlign: "center",
   },
   placeholderText: {
     maxWidth: 360,
-    color: THEME.colors.muted,
-    fontSize: THEME.fontSize.body,
+    color: theme.colors.muted,
+    fontSize: theme.fontSize.body,
     lineHeight: 24,
     textAlign: "center",
   },
-});
+}));

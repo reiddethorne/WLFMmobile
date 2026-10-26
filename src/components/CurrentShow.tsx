@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 
-import { THEME } from "@/constants/theme";
+import { createThemedStyles } from "@/hooks/useThemedStyles";
 import { useSchedule } from "@/hooks/useSchedule";
 import { formatEventDate, formatEventTime } from "@/services/schedule";
 import type { TimedScheduleEvent } from "@/types/schedule";
@@ -22,6 +22,7 @@ interface ShowBannerProps {
 }
 
 function ShowBanner({ accessibilityPrefix, event, label, onAir = false }: ShowBannerProps) {
+  const { styles } = useStyles();
   const [expanded, setExpanded] = useState(false);
   const disclosureProgress = useRef(new Animated.Value(0)).current;
   const textProgress = useRef(new Animated.Value(1)).current;
@@ -124,6 +125,7 @@ function ShowBanner({ accessibilityPrefix, event, label, onAir = false }: ShowBa
 
 export function CurrentShow() {
   const { currentEvent, error, nextEvent, status } = useSchedule();
+  const { styles } = useStyles();
 
   if (currentEvent) {
     return (
@@ -169,27 +171,27 @@ export function CurrentShow() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((theme) => ({
   container: {
     width: "100%",
     minHeight: 64,
-    marginBottom: THEME.spacing.lg,
-    paddingHorizontal: THEME.spacing.md,
-    paddingVertical: THEME.spacing.sm,
+    marginBottom: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
     flexDirection: "row",
     alignItems: "center",
-    gap: THEME.spacing.md,
-    backgroundColor: THEME.colors.surfaceMuted,
-    borderColor: THEME.colors.border,
+    gap: theme.spacing.md,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderColor: theme.colors.border,
     borderWidth: 1,
     borderTopWidth: 0,
-    borderBottomLeftRadius: THEME.radius.md,
-    borderBottomRightRadius: THEME.radius.md,
+    borderBottomLeftRadius: theme.radius.md,
+    borderBottomRightRadius: theme.radius.md,
   },
   onAirContainer: {
-    backgroundColor: THEME.colors.liveSurface,
-    borderColor: THEME.colors.live,
-    borderLeftColor: THEME.colors.live,
+    backgroundColor: theme.colors.liveSurface,
+    borderColor: theme.colors.live,
+    borderLeftColor: theme.colors.live,
   },
   interactiveContainer: {
     alignItems: "flex-start",
@@ -209,17 +211,17 @@ const styles = StyleSheet.create({
   liveDot: {
     width: 8,
     height: 8,
-    backgroundColor: THEME.colors.live,
+    backgroundColor: theme.colors.live,
     borderRadius: 4,
   },
   label: {
-    color: THEME.colors.muted,
-    fontSize: THEME.fontSize.caption,
+    color: theme.colors.muted,
+    fontSize: theme.fontSize.caption,
     fontWeight: "800",
     letterSpacing: 1.2,
   },
   onAirLabel: {
-    color: THEME.colors.live,
+    color: theme.colors.live,
   },
   showDetails: {
     flex: 1,
@@ -229,36 +231,36 @@ const styles = StyleSheet.create({
   disclosure: {
     width: 20,
     marginTop: 10,
-    color: THEME.colors.muted,
+    color: theme.colors.muted,
     fontSize: 22,
     lineHeight: 24,
     textAlign: "center",
   },
   title: {
-    color: THEME.colors.text,
+    color: theme.colors.text,
     fontSize: 17,
     lineHeight: 22,
     fontWeight: "700",
   },
   time: {
-    color: THEME.colors.muted,
+    color: theme.colors.muted,
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "600",
   },
   extraDetails: {
-    marginTop: THEME.spacing.sm,
-    gap: THEME.spacing.xs,
+    marginTop: theme.spacing.sm,
+    gap: theme.spacing.xs,
   },
   detail: {
-    color: THEME.colors.muted,
+    color: theme.colors.muted,
     fontSize: 14,
     lineHeight: 20,
   },
   emptyText: {
     flex: 1,
-    color: THEME.colors.muted,
+    color: theme.colors.muted,
     fontSize: 15,
     lineHeight: 20,
   },
-});
+}));

@@ -2,9 +2,11 @@ import { Image, StyleSheet, Text, View } from "react-native";
 
 import { STATION } from "@/config/station";
 import { STATION_ARTWORK } from "@/constants/assets";
-import { THEME } from "@/constants/theme";
+import { createThemedStyles } from "@/hooks/useThemedStyles";
 
 export function StationHeader() {
+  const { styles } = useStyles();
+
   return (
     <View style={styles.stationHeader}>
       <View style={styles.stationText}>
@@ -27,16 +29,16 @@ export function StationHeader() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((theme) => ({
   stationHeader: {
     width: "100%",
-    paddingHorizontal: THEME.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-evenly",
-    gap: THEME.spacing.sm,
+    gap: theme.spacing.sm,
   },
-  logo: { flex: 1, maxWidth: 100, height: 56, borderRadius: THEME.radius.md },
+  logo: { flex: 1, maxWidth: 100, height: 56, borderRadius: theme.radius.md },
   stationText: {
     flex: 1,
     maxWidth: 100,
@@ -45,7 +47,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   stationName: {
-    color: THEME.colors.text,
+    color: theme.colors.text,
     fontSize: 24,
     fontWeight: "800",
     letterSpacing: 0.5,
@@ -60,9 +62,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: THEME.colors.liveSurface,
-    borderRadius: THEME.radius.pill,
+    backgroundColor: theme.colors.liveSurface,
+    borderRadius: theme.radius.pill,
   },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: THEME.colors.live },
-  liveText: { color: THEME.colors.live, fontSize: THEME.fontSize.caption, fontWeight: "800", letterSpacing: 1 },
-});
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.live },
+  liveText: { color: theme.colors.live, fontSize: theme.fontSize.caption, fontWeight: "800", letterSpacing: 1 },
+}));

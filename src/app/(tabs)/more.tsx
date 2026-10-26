@@ -1,10 +1,11 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Constants from "expo-constants";
 import * as Linking from "expo-linking";
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { THEME } from "@/constants/theme";
+import { useThemeContext } from "@/context/ThemeContext";
+import { createThemedStyles } from "@/hooks/useThemedStyles";
 
 const APP_VERSION = Constants.expoConfig?.version ?? "Unknown";
 const CONTACT_URL = "https://solwlfm.lawrence.edu/contact/";
@@ -42,6 +43,9 @@ const MORE_SECTIONS = [
 ] as const;
 
 export default function More() {
+  const { isDark, setDarkMode } = useThemeContext();
+  const { styles, theme } = useStyles();
+
   const openExternalUrl = async (url: string) => {
     try {
       await Linking.openURL(url);
@@ -84,8 +88,11 @@ export default function More() {
               {section.options.map((option, index) => {
                 const isShareStation = "shareUrl" in option;
                 const isExternalLink = "url" in option;
-                const isInteractive = isShareStation || isExternalLink;
-                const onPress = isShareStation
+                const isDarkMode = option.label === "Dark mode";
+                const isInteractive = isShareStation || isExternalLink || isDarkMode;
+                const onPress = isDarkMode
+                  ? () => setDarkMode(!isDark)
+                  : isShareStation
                   ? () => void shareStation()
                   : isExternalLink
                     ? () => void openExternalUrl(option.url)
@@ -95,14 +102,17 @@ export default function More() {
                   <Pressable
                     accessible
                     accessibilityHint={
-                      isShareStation
+                      isDarkMode
+                        ? "Switches the app between light and dark appearance"
+                        : isShareStation
                         ? "Opens the system share sheet"
                         : isExternalLink
                           ? "Opens in your browser"
                           : undefined
                     }
                     accessibilityLabel={option.label}
-                    accessibilityRole={isInteractive ? "button" : undefined}
+                    accessibilityRole={isDarkMode ? "switch" : isInteractive ? "button" : undefined}
+                    accessibilityState={isDarkMode ? { checked: isDark } : undefined}
                     key={option.label}
                     onPress={onPress}
                     style={({ pressed }) => [
@@ -114,20 +124,34 @@ export default function More() {
                     <View style={styles.optionIcon}>
                       <Ionicons
                         accessibilityElementsHidden
-                        color={THEME.colors.accentPressed}
+                        color={theme.colors.icon}
                         importantForAccessibility="no-hide-descendants"
                         name={option.icon}
                         size={22}
                       />
                     </View>
                     <Text style={styles.optionLabel}>{option.label}</Text>
-                    <Ionicons
-                      accessibilityElementsHidden
-                      color={THEME.colors.muted}
-                      importantForAccessibility="no-hide-descendants"
-                      name="chevron-forward"
-                      size={20}
-                    />
+                    {isDarkMode ? (
+                      <Switch
+                        accessibilityElementsHidden
+                        importantForAccessibility="no-hide-descendants"
+                        ios_backgroundColor={theme.colors.disabled}
+                        onValueChange={setDarkMode}
+                        pointerEvents="none"
+                        style={styles.darkModeSwitch}
+                        thumbColor={theme.colors.surface}
+                        trackColor={{ false: theme.colors.disabled, true: theme.colors.accent }}
+                        value={isDark}
+                      />
+                    ) : (
+                      <Ionicons
+                        accessibilityElementsHidden
+                        color={theme.colors.icon}
+                        importantForAccessibility="no-hide-descendants"
+                        name="chevron-forward"
+                        size={20}
+                      />
+                    )}
                   </Pressable>
                 );
               })}
@@ -142,87 +166,90 @@ export default function More() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((theme) => ({
   screen: {
     flex: 1,
-    backgroundColor: THEME.colors.background,
+    backgroundColor: theme.colors.background,
   },
   content: {
     width: "100%",
-    maxWidth: THEME.contentMaxWidth,
-    paddingHorizontal: THEME.spacing.md,
-    paddingTop: THEME.spacing.xl,
-    paddingBottom: THEME.spacing.xl,
-    gap: THEME.spacing.xl,
+    maxWidth: theme.contentMaxWidth,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl,
+    paddingBottom: theme.spacing.xl,
+    gap: theme.spacing.xl,
     alignSelf: "center",
   },
   headingGroup: {
-    gap: THEME.spacing.sm,
+    gap: theme.spacing.sm,
   },
   title: {
-    color: THEME.colors.text,
-    fontSize: THEME.fontSize.heading,
+    color: theme.colors.text,
+    fontSize: theme.fontSize.heading,
     fontWeight: "800",
   },
   subtitle: {
-    color: THEME.colors.muted,
-    fontSize: THEME.fontSize.body,
+    color: theme.colors.muted,
+    fontSize: theme.fontSize.body,
     lineHeight: 24,
   },
   section: {
-    gap: THEME.spacing.sm,
+    gap: theme.spacing.sm,
   },
   sectionTitle: {
-    paddingHorizontal: THEME.spacing.xs,
-    color: THEME.colors.muted,
-    fontSize: THEME.fontSize.caption,
+    paddingHorizontal: theme.spacing.xs,
+    color: theme.colors.muted,
+    fontSize: theme.fontSize.caption,
     fontWeight: "800",
     letterSpacing: 0.8,
     textTransform: "uppercase",
   },
   versionText: {
-    paddingTop: THEME.spacing.xs,
-    color: THEME.colors.muted,
+    paddingTop: theme.spacing.xs,
+    color: theme.colors.muted,
     textAlign: "center",
   },
   optionsCard: {
-    backgroundColor: THEME.colors.surface,
-    borderColor: THEME.colors.border,
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: THEME.radius.lg,
-    shadowColor: THEME.shadow.color,
-    shadowOffset: THEME.shadow.offset,
-    shadowOpacity: THEME.shadow.opacity,
-    shadowRadius: THEME.shadow.radius,
-    elevation: THEME.shadow.elevation,
+    borderRadius: theme.radius.lg,
+    shadowColor: theme.shadow.color,
+    shadowOffset: theme.shadow.offset,
+    shadowOpacity: theme.shadow.opacity,
+    shadowRadius: theme.shadow.radius,
+    elevation: theme.shadow.elevation,
     overflow: "hidden",
   },
   optionRow: {
     minHeight: 64,
-    paddingHorizontal: THEME.spacing.md,
+    paddingHorizontal: theme.spacing.md,
     flexDirection: "row",
     alignItems: "center",
-    gap: THEME.spacing.md,
+    gap: theme.spacing.md,
   },
   optionDivider: {
-    borderBottomColor: THEME.colors.border,
+    borderBottomColor: theme.colors.border,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   optionRowPressed: {
-    backgroundColor: THEME.colors.surfaceMuted,
+    backgroundColor: theme.colors.surfaceMuted,
   },
   optionIcon: {
     width: 36,
     height: 36,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: THEME.colors.surfaceMuted,
-    borderRadius: THEME.radius.pill,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderRadius: theme.radius.pill,
   },
   optionLabel: {
     flex: 1,
-    color: THEME.colors.text,
-    fontSize: THEME.fontSize.body,
+    color: theme.colors.text,
+    fontSize: theme.fontSize.body,
     fontWeight: "700",
   },
-});
+  darkModeSwitch: {
+    alignSelf: "center",
+  },
+}));
