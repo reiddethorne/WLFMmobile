@@ -89,8 +89,8 @@ const useStyles = createThemedStyles((theme) => ({
     borderRadius: theme.radius.pill,
   },
   selectedDateChip: {
-    backgroundColor: theme.colors.text,
-    borderColor: theme.colors.text,
+    backgroundColor: theme.colors.accent,
+    borderColor: theme.colors.accent,
   },
   dateChipText: {
     color: theme.colors.text,
@@ -98,7 +98,7 @@ const useStyles = createThemedStyles((theme) => ({
     fontWeight: "700",
   },
   selectedDateChipText: {
-    color: theme.colors.surface,
+    color: theme.colors.accentText,
   },
   pressed: {
     opacity: 0.7,
