@@ -32,6 +32,7 @@ export default {
 async function runtime(t, platform = "android") {
   const folder = await mkdtemp(join(tmpdir(), "wlfm-player-tests-"));
   const source = await readFile(new URL("../src/services/player.ts", import.meta.url), "utf8");
+  const metadataTextSource = await readFile(new URL("../src/utils/metadataText.ts", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
   }).outputText
@@ -39,10 +40,15 @@ async function runtime(t, platform = "android") {
     .replaceAll('"@rntp/player"', '"./native.mjs"')
     .replaceAll('"../config/station"', '"./station.mjs"')
     .replaceAll('"../constants/assets"', '"./assets.mjs"')
+    .replaceAll('"../utils/metadataText"', '"./metadataText.mjs"')
     .replaceAll('"./live365"', '"./live365.mjs"')
     .replaceAll('"./metadata"', '"./metadata.mjs"');
+  const compiledMetadataText = ts.transpileModule(metadataTextSource, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+  }).outputText;
   await Promise.all([
     writeFile(join(folder, "player.mjs"), compiled),
+    writeFile(join(folder, "metadataText.mjs"), compiledMetadataText),
     writeFile(join(folder, "native.mjs"), nativeStub),
     writeFile(join(folder, "appstate.mjs"), `export const Platform = {OS:${JSON.stringify(platform)}}; export const AppState = {currentState:'active', listenerRegistrations:0, addEventListener(_event, handler) {this.listenerRegistrations++; this.handler=handler; return {remove(){}};}};`),
     writeFile(join(folder, "station.mjs"), `export const STATION = {id:'a98536', name:'WLFM'};`),
@@ -231,13 +237,14 @@ for (const platform of ["ios", "android"]) {
     await player.playRadio();
     assert.equal(native.control.item.artist, "Student Radio - WLFM");
 
-    native.emit("metadata", {title:"Home", artist:"OVAN/SHAUN"});
-    assert.deepEqual(metadata.controls.raw, [{title:"Home", artist:"OVAN/SHAUN"}]);
+    native.emit("metadata", {title:"Everybody`s Talkin’", artist:"D´Angelo"});
+    assert.deepEqual(metadata.controls.raw, [{title:"Everybody`s Talkin’", artist:"D´Angelo"}]);
     assert.deepEqual(metadata.controls.effective.at(-1), {
       ...native.control.item,
-      artist:"OVAN/SHAUN",
+      artist:"D'Angelo",
     });
-    assert.equal(native.control.item.artist, "OVAN/SHAUN - WLFM");
+    assert.equal(native.control.item.title, "Everybody's Talkin'");
+    assert.equal(native.control.item.artist, "D'Angelo - WLFM");
 
     metadata.controls.updater({title:"Next", artist:"Another Artist", artworkUrl:42});
     assert.equal(native.control.item.artist, "Another Artist - WLFM");

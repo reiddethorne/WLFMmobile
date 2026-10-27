@@ -134,6 +134,14 @@ test("stream metadata decodes apostrophe character references", async (t) => {
   });
 });
 
+test("stream metadata displays only straight apostrophes", async (t) => {
+  const { metadata } = await runtime(t);
+  metadata.receiveStreamMetadata({ title: "Everybody`s Talkin’", artist: "D´Angelo &lsquo;Live&rsquo;" });
+  assert.deepEqual(metadata.getNowPlayingSnapshot(), {
+    title: "Everybody's Talkin'", artist: "D'Angelo 'Live'", artworkUrl: null, source: "stream",
+  });
+});
+
 test("matching Live365 data supplies artwork without overriding stream text", async (t) => {
   const { metadata, live365, nativeUpdates } = await runtime(t);
   metadata.receiveStreamMetadata({ title: "  HOME ", artist: "OVAN / SHAUN" });

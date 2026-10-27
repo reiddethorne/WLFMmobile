@@ -3,12 +3,12 @@ const NAMED_CHARACTER_REFERENCES: Readonly<Record<string, string>> = {
   apos: "'",
   gt: ">",
   ldquo: "\u201c",
-  lsquo: "\u2018",
+  lsquo: "'",
   lt: "<",
   nbsp: " ",
   quot: '"',
   rdquo: "\u201d",
-  rsquo: "\u2019",
+  rsquo: "'",
 };
 
 const CHARACTER_REFERENCE = /&(?:#(\d+)|#x([\da-f]+)|([a-z]+));/gi;
@@ -41,6 +41,7 @@ export function cleanMetadataText(value: unknown): string | null {
     decoded = next;
   }
 
-  const cleaned = decoded.trim().replace(/\s+/g, " ");
+  // Display every apostrophe-like metadata character as a straight apostrophe.
+  const cleaned = decoded.replace(/[`´‘’ʼ＇]/gu, "'").trim().replace(/\s+/g, " ");
   return cleaned.length > 0 ? cleaned : null;
 }

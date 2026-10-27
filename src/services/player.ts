@@ -3,6 +3,7 @@ import { AppState, Platform } from "react-native";
 import { STATION } from "../config/station";
 import { STATION_ARTWORK } from "../constants/assets";
 import type { RadioPlayerSnapshot } from "../types/player";
+import { cleanMetadataText } from "../utils/metadataText";
 import { getStationInfo } from "./live365";
 import {
   configureNativeMetadataUpdater,
@@ -179,7 +180,9 @@ async function initialize() {
       player.addEventListener(playerModule.Event.MetadataReceived, (metadata) => {
         receiveStreamMetadata(metadata);
         if (IS_NATIVE_PLATFORM) {
-          updateActiveMetadata({ artist: metadata.artist ?? FALLBACK_NOW_PLAYING.artist });
+          const title = cleanMetadataText(metadata.title);
+          const artist = cleanMetadataText(metadata.artist) ?? FALLBACK_NOW_PLAYING.artist;
+          updateActiveMetadata({ ...(title ? { title } : {}), artist });
         }
       });
       player.addEventListener(playerModule.Event.MediaMetadataChanged, (metadata) => {
