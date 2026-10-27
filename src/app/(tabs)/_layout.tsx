@@ -1,10 +1,15 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { DynamicColorIOS, Platform } from "react-native";
 
+import { MiniPlayer } from "@/components/MiniPlayer";
 import { useAppTheme } from "@/context/ThemeContext";
+import { useNowPlaying } from "@/hooks/useNowPlaying";
+import { useRadioPlayer } from "@/hooks/useRadioPlayer";
 
 export default function TabLayout() {
   const theme = useAppTheme();
+  const nowPlaying = useNowPlaying();
+  const player = useRadioPlayer();
   const tabIconColor = Platform.OS === "ios"
     ? DynamicColorIOS({
         light: "#000000",
@@ -17,6 +22,18 @@ export default function TabLayout() {
       iconColor={tabIconColor}
       tintColor={tabIconColor}
     >
+      {player.hasRequestedPlayback && (
+        <NativeTabs.BottomAccessory>
+          <MiniPlayer
+            artist={nowPlaying.artist}
+            canPause={player.canPause}
+            onTogglePlayback={player.togglePlayback}
+            status={player.status}
+            title={nowPlaying.title}
+          />
+        </NativeTabs.BottomAccessory>
+      )}
+
       <NativeTabs.Trigger name="index" accessibilityLabel="Radio tab">
         <NativeTabs.Trigger.Icon
           sf={{ default: "radio", selected: "radio.fill" }}

@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { createThemedStyles } from "@/hooks/useThemedStyles";
@@ -12,21 +13,6 @@ const STATUS: Record<RadioPlayerStatus, string> = {
   paused: "Playback paused",
   error: "Station unavailable",
 };
-
-function TransportIcon({ mode }: { readonly mode: "play" | "pause" | "retry" }) {
-  const { styles } = useStyles();
-
-  if (mode === "pause") {
-    return (
-      <View style={styles.pauseIcon}>
-        <View style={styles.pauseBar} />
-        <View style={styles.pauseBar} />
-      </View>
-    );
-  }
-  if (mode === "retry") return <Text style={styles.retryIcon}>↻</Text>;
-  return <View style={styles.playIcon} />;
-}
 
 export function PlayerButton() {
   const { styles, theme } = useStyles();
@@ -54,7 +40,18 @@ export function PlayerButton() {
         ]}
       >
         <View style={styles.iconSlot}>
-          {loading ? <ActivityIndicator color={theme.colors.surface} size="large" /> : <TransportIcon mode={mode} />}
+          {loading ? (
+            <ActivityIndicator color={theme.colors.surface} size="large" />
+          ) : (
+            <Ionicons
+              accessibilityElementsHidden
+              color={theme.colors.surface}
+              importantForAccessibility="no-hide-descendants"
+              name={mode === "pause" ? "pause-sharp" : mode === "retry" ? "refresh" : "play-sharp"}
+              size={36}
+              style={styles.transportIcon}
+            />
+          )}
         </View>
         <Text style={styles.buttonText}>{actionText}</Text>
       </Pressable>
@@ -89,25 +86,15 @@ const useStyles = createThemedStyles((theme) => ({
   buttonPressed: { backgroundColor: theme.colors.accentPressed, transform: [{ scale: 0.97 }] },
   buttonDisabled: { backgroundColor: theme.colors.disabled, shadowOpacity: 0 },
   iconSlot: {
-    width: 32,
+    width: 36,
     height: 48,
     alignItems: "center",
     justifyContent: "center",
   },
-  playIcon: {
-    width: 0,
-    height: 0,
-    borderTopWidth: 14,
-    borderBottomWidth: 14,
-    borderLeftWidth: 22,
-    borderTopColor: "transparent",
-    borderBottomColor: "transparent",
-    borderLeftColor: theme.colors.surface,
-    transform: [{ translateX: 2 }],
+  transportIcon: {
+    width: 36,
+    textAlign: "center",
   },
-  pauseIcon: { height: 28, flexDirection: "row", alignItems: "center", gap: 8 },
-  pauseBar: { width: 8, height: 28, backgroundColor: theme.colors.surface, borderRadius: 2 },
-  retryIcon: { color: theme.colors.surface, fontSize: 42, lineHeight: 48, fontWeight: "500" },
   buttonText: {
     width: 52,
     color: theme.colors.surface,
