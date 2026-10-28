@@ -75,9 +75,6 @@ export default function More() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.headingGroup}>
-          <Text accessibilityRole="header" style={styles.title}>More</Text>
-        </View>
 
         {MORE_SECTIONS.map((section) => (
           <View key={section.title} style={styles.section}>

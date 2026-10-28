@@ -6,6 +6,8 @@ export type RadioPlayerStatus =
   | "paused"
   | "error";
 
+export type RadioTransport = "hls" | "mp3";
+
 export interface RadioPlayerSnapshot {
   readonly status: RadioPlayerStatus;
   readonly error: string | null;

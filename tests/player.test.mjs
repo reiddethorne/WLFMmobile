@@ -19,7 +19,13 @@ export default {
   addEventListener(event, listener) { const listeners = control.listeners.get(event) ?? new Set(); listeners.add(listener); control.listeners.set(event, listeners); return { remove() {listeners.delete(listener);} }; },
   getPlaybackState() { return control.state; },
   isPlaying() { return control.playing; },
-  getActiveMediaItem() { return control.item; },
+  getActiveMediaItem() {
+    if (!control.item) return null;
+    // Match native RNTP serialization: mimeType configures the source but is
+    // not returned, while app-defined extras survive the round trip.
+    const {mimeType, ...item} = control.item;
+    return item;
+  },
   getActiveMediaItemIndex() { return control.item ? 0 : null; },
   setMediaItem(item) { control.calls.push(['item', item]); control.item = item; control.state = 'buffering'; emit('state', {state:'buffering'}); },
   play() { control.calls.push(['play']); },
@@ -55,8 +61,10 @@ async function runtime(t, platform = "android") {
     writeFile(join(folder, "assets.mjs"), `export const STATION_ARTWORK = 42;`),
     writeFile(join(folder, "metadata.mjs"), `
       export const FALLBACK_NOW_PLAYING = {title:'LIVE', artist:'Student Radio'};
+      export const nowPlayingSnapshot = {title:'API Song', artist:'API Artist', artworkUrl:'https://media.live365.com/api.jpg'};
       export const controls = {active:[], raw:[], effective:[], resets:0, refreshes:0, updater:null};
       export function configureNativeMetadataUpdater(updater) {controls.updater=updater;}
+      export function getNowPlayingSnapshot() {return nowPlayingSnapshot;}
       export function receiveStreamMetadata(value) {controls.raw.push(value);}
       export function receiveEffectiveMetadata(value) {controls.effective.push(value);}
       export function refreshMetadataFallback() {controls.refreshes++;}
@@ -65,7 +73,7 @@ async function runtime(t, platform = "android") {
     `),
     writeFile(join(folder, "live365.mjs"), `
       export const controls = {calls:0, load:null};
-      export const station = {name:'WLFM', artworkUrl:null, preferredStream:{url:'https://streaming.live365.com/a98536', mimeType:'audio/mpeg'}};
+      export const station = {name:'WLFM', artworkUrl:null, hlsUrl:'https://streaming.live365.com/a98536/playlist.m3u8', preferredStream:{url:'https://streaming.live365.com/a98536', mimeType:'audio/mpeg'}};
       export async function getStationInfo(options) {controls.calls++; return controls.load ? controls.load(options) : station;}
     `),
   ]);
@@ -91,8 +99,8 @@ test("opening the player does not initialize, fetch, or autoplay", async (t) => 
   unsubscribe();
 });
 
-test("simultaneous Play calls initialize once and build one live station item", async (t) => {
-  const { player, native, live365, AppState } = await runtime(t);
+test("simultaneous Play calls initialize once and build one live HLS station item", async (t) => {
+  const { player, native, live365, metadata, AppState } = await runtime(t);
   await Promise.all([player.playRadio(), player.playRadio(), player.playRadio()]);
   assert.equal(native.control.calls.filter(([name]) => name === "setup").length, 1);
   assert.equal(AppState.listenerRegistrations, 1);
@@ -100,12 +108,16 @@ test("simultaneous Play calls initialize once and build one live station item", 
   assert.equal(live365.controls.calls, 1);
   assert.equal(native.control.item.isLive, true);
   assert.equal(native.control.item.mediaId, "a98536");
-  assert.equal(native.control.item.mimeType, "audio/mpeg");
+  assert.equal(native.control.item.mimeType, "application/x-mpegURL");
+  assert.deepEqual(native.default.getActiveMediaItem().extras, {
+    playbackTransport:"hls", transportPreference:"hls",
+  });
+  assert.equal(native.control.item.url.uri, "https://streaming.live365.com/a98536/playlist.m3u8");
   assert.equal(native.control.item.title, "LIVE");
   assert.equal(native.control.item.artist, "Student Radio - WLFM");
   assert.equal(native.control.item.artworkUrl, 42);
-  assert.equal(native.control.item.url.headers["Icy-MetaData"], "1");
-  assert.equal(native.control.item.url.headers["User-Agent"], "WLFM/1.0 (Android)");
+  assert.equal(native.control.item.url.headers, undefined);
+  assert.equal(metadata.controls.active.at(-1), true);
   const setup = native.control.calls.find(([name]) => name === "setup")[1];
   assert.equal(setup.audioMixing, "exclusive");
   assert.equal(setup.handleAudioBecomingNoisy, true);
@@ -119,6 +131,30 @@ test("simultaneous Play calls initialize once and build one live station item", 
   assert.equal(player.getRadioPlayerSnapshot().status, "playing");
 });
 
+test("falls back to the direct MP3 stream when HLS is unavailable", async (t) => {
+  const { player, native, live365, metadata } = await runtime(t);
+  live365.controls.load = async () => ({ ...live365.station, hlsUrl: null });
+  await player.playRadio();
+  assert.equal(native.control.item.mimeType, "audio/mpeg");
+  assert.equal(native.control.item.url.uri, "https://streaming.live365.com/a98536");
+  assert.equal(native.control.item.url.headers["Icy-MetaData"], "1");
+  assert.equal(native.control.item.url.headers["User-Agent"], "WLFM/1.0 (Android)");
+  native.emit("effectiveMetadata", {title:"Direct stream title", artist:"Direct stream artist"});
+  assert.deepEqual(metadata.controls.effective.at(-1), {
+    title:"Direct stream title", artist:"Direct stream artist",
+  });
+  native.emit("metadata", {title:"MP3 song", artist:"MP3 artist"});
+  assert.deepEqual(metadata.controls.raw.at(-1), {title:"MP3 song", artist:"MP3 artist"});
+});
+
+test("does not use an HLS URL when Live365 reports no playable stream", async (t) => {
+  const { player, native, live365 } = await runtime(t);
+  live365.controls.load = async () => ({ ...live365.station, preferredStream: null });
+  await player.playRadio();
+  assert.match(player.getRadioPlayerSnapshot().error, /no available supported listening stream/);
+  assert.equal(native.control.calls.some(([name]) => name === "item"), false);
+});
+
 test("pause/resume reuses the live queue and does not initialize or fetch again", async (t) => {
   const { player, native, live365 } = await runtime(t);
   await player.playRadio(); native.audible();
@@ -128,6 +164,44 @@ test("pause/resume reuses the live queue and does not initialize or fetch again"
   assert.equal(live365.controls.calls, 1);
   assert.equal(native.control.calls.filter(([name]) => name === "item").length, 1);
   assert.equal(native.control.calls.filter(([name]) => name === "setup").length, 1);
+});
+
+test("replaces a legacy native item that has no transport marker", async (t) => {
+  const { player, native } = await runtime(t);
+  native.control.item = {
+    mediaId:"a98536", url:"https://streaming.live365.com/a98536",
+    mimeType:"audio/mpeg", title:"LIVE", artist:"Student Radio - WLFM", isLive:true,
+  };
+  native.control.state = "ready";
+  await player.playRadio();
+  assert.equal(native.control.item.mimeType, "application/x-mpegURL");
+  assert.deepEqual(native.control.item.extras, {
+    playbackTransport:"hls", transportPreference:"hls",
+  });
+  assert.equal(native.control.calls.filter(([name]) => name === "item").length, 1);
+});
+
+test("development transport selection pauses, resets, and creates a fresh MP3 connection", async (t) => {
+  const { player, native, live365, metadata } = await runtime(t);
+  let transportUpdates = 0;
+  const unsubscribe = player.subscribeToRadioTransport(() => transportUpdates++);
+  await player.playRadio(); native.audible();
+  const resetsBeforeSwitch = metadata.controls.resets;
+
+  player.setRadioTransport("mp3");
+  assert.equal(player.getRadioTransportSnapshot(), "mp3");
+  assert.equal(player.getRadioPlayerSnapshot().status, "paused");
+  assert.equal(metadata.controls.resets, resetsBeforeSwitch + 1);
+  assert.equal(metadata.controls.active.at(-1), false);
+  assert.equal(transportUpdates, 1);
+
+  await player.playRadio();
+  assert.equal(live365.controls.calls, 2);
+  assert.equal(native.control.item.mimeType, "audio/mpeg");
+  assert.deepEqual(native.control.item.extras, {
+    playbackTransport:"mp3", transportPreference:"mp3",
+  });
+  unsubscribe();
 });
 
 test("Pause cancels pending discovery and stale responses cannot start audio", async (t) => {
@@ -217,13 +291,16 @@ test("native pause updates the screen and unsubscribed observers stay removed", 
   assert.equal(player.getRadioPlayerSnapshot().status, "playing");
 });
 
-test("metadata events and native updates stay connected to the active live item", async (t) => {
+test("HLS ignores fallback stream events and restores API metadata to the native item", async (t) => {
   const { player, native, metadata } = await runtime(t);
   await player.playRadio(); native.audible();
-  native.emit("metadata", {title:"Home", artist:"OVAN/SHAUN"});
-  native.emit("effectiveMetadata", {title:"Home", artist:"OVAN/SHAUN"});
-  assert.deepEqual(metadata.controls.raw, [{title:"Home", artist:"OVAN/SHAUN"}]);
-  assert.deepEqual(metadata.controls.effective.at(-1), {title:"Home", artist:"OVAN/SHAUN"});
+  native.emit("metadata", {title:"LIVE", artist:"Student Radio - WLFM"});
+  native.emit("effectiveMetadata", {title:"LIVE", artist:"Student Radio - WLFM"});
+  assert.deepEqual(metadata.controls.raw, []);
+  assert.deepEqual(metadata.controls.effective, []);
+  assert.equal(native.control.item.title, "API Song");
+  assert.equal(native.control.item.artist, "API Artist - WLFM");
+  assert.equal(native.control.item.artworkUrl, "https://media.live365.com/api.jpg");
   metadata.controls.updater({artworkUrl:"https://media.live365.com/home.jpg"});
   assert.deepEqual(native.control.calls.at(-1), ["metadataUpdate", 0, {artworkUrl:"https://media.live365.com/home.jpg"}]);
   assert.equal(metadata.controls.active.includes(true), true);
@@ -233,7 +310,8 @@ test("metadata events and native updates stay connected to the active live item"
 
 for (const platform of ["ios", "android"]) {
   test(`${platform} native metadata appends WLFM without changing app metadata`, async (t) => {
-    const { player, native, metadata } = await runtime(t, platform);
+    const { player, native, live365, metadata } = await runtime(t, platform);
+    live365.controls.load = async () => ({ ...live365.station, hlsUrl: null });
     await player.playRadio();
     assert.equal(native.control.item.artist, "Student Radio - WLFM");
 

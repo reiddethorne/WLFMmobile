@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { getStationInfo } from "@/services/live365";
+import {
+  getRadioTransportSnapshot,
+  setRadioTransport,
+  subscribeToRadioTransport,
+} from "@/services/player";
 import type { Live365StationInfo } from "@/types/live365";
 
 type DiagnosticsState =
@@ -11,6 +16,11 @@ type DiagnosticsState =
 /** One snapshot per mount/manual refresh. No playback or background polling. */
 export function useLive365Diagnostics() {
   const [state, setState] = useState<DiagnosticsState>({ status: "loading" });
+  const transport = useSyncExternalStore(
+    subscribeToRadioTransport,
+    getRadioTransportSnapshot,
+    getRadioTransportSnapshot,
+  );
   const requestRef = useRef<AbortController | null>(null);
 
   const refresh = useCallback(() => {
@@ -35,5 +45,5 @@ export function useLive365Diagnostics() {
     return () => requestRef.current?.abort();
   }, [refresh]);
 
-  return { state, refresh };
+  return { state, refresh, setTransport: setRadioTransport, transport };
 }

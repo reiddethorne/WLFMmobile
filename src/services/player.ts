@@ -2,12 +2,13 @@ import { AppState, Platform } from "react-native";
 
 import { STATION } from "../config/station";
 import { STATION_ARTWORK } from "../constants/assets";
-import type { RadioPlayerSnapshot } from "../types/player";
+import type { RadioPlayerSnapshot, RadioTransport } from "../types/player";
 import { cleanMetadataText } from "../utils/metadataText";
 import { getStationInfo } from "./live365";
 import {
   configureNativeMetadataUpdater,
   FALLBACK_NOW_PLAYING,
+  getNowPlayingSnapshot,
   receiveEffectiveMetadata,
   receiveStreamMetadata,
   refreshMetadataFallback,
@@ -17,6 +18,10 @@ import {
 
 type PlayerModule = typeof import("@rntp/player");
 const CONNECTION_TIMEOUT_MS = 30_000;
+const HLS_MIME_TYPE = "application/x-mpegURL";
+const PLAYBACK_TRANSPORT_EXTRA = "playbackTransport";
+const TRANSPORT_PREFERENCE_EXTRA = "transportPreference";
+const HLS_TRANSPORT = "hls";
 const NATIVE_STATION_SUFFIX = ` - ${STATION.name}`;
 const IS_NATIVE_PLATFORM = Platform.OS === "ios" || Platform.OS === "android";
 
@@ -32,7 +37,9 @@ let discovering = false;
 let failure: string | null = null;
 let timeout: ReturnType<typeof setTimeout> | null = null;
 let snapshot: RadioPlayerSnapshot = { status: "idle", error: null, canPause: false };
+let transportPreference: RadioTransport = "hls";
 const observers = new Set<() => void>();
+const transportObservers = new Set<() => void>();
 
 function formatNativeArtist(artist: string): string;
 function formatNativeArtist(artist: undefined): undefined;
@@ -53,6 +60,16 @@ function normalizeEffectiveMetadata(metadata: {
     ...metadata,
     artist: metadata.artist.slice(0, -NATIVE_STATION_SUFFIX.length).trim(),
   };
+}
+
+function isHlsItem(item: { readonly extras?: Record<string, unknown> } | null): boolean {
+  // RNTP consumes mimeType while building the native source but does not return
+  // it from getActiveMediaItem(). App-defined extras survive that round trip.
+  return item?.extras?.[PLAYBACK_TRANSPORT_EXTRA] === HLS_TRANSPORT;
+}
+
+function itemMatchesTransportPreference(item: { readonly extras?: Record<string, unknown> } | null): boolean {
+  return item?.extras?.[TRANSPORT_PREFERENCE_EXTRA] === transportPreference;
 }
 
 function publish(next: RadioPlayerSnapshot) {
@@ -79,7 +96,10 @@ function updateFromNative() {
   const player = playerModule.default;
   const state = player.getPlaybackState();
   const playing = player.isPlaying();
-  setMetadataPlaybackActive(playing);
+  // HLS may spend longer preparing its playlist and first segment. Start the
+  // Live365 metadata fallback as soon as playback is wanted so the player does
+  // not remain on LIVE/WLFM while native playback is still buffering.
+  setMetadataPlaybackActive(wantsPlayback || playing);
   if (playing) clearConnectionTimeout();
   if (state === playerModule.PlaybackState.Error) {
     fail("The radio stream could not be played. Check your connection and retry.");
@@ -178,6 +198,19 @@ async function initialize() {
         fail(message.trim() || "Playback failed. Check your connection and retry.");
       });
       player.addEventListener(playerModule.Event.MetadataReceived, (metadata) => {
+        if (isHlsItem(player.getActiveMediaItem())) {
+          // Live365's HLS readiness event repeats the media item's LIVE/WLFM
+          // fallback instead of identifying the song. Native auto-update has
+          // already applied it by this point, so restore the API-backed value
+          // without allowing the misleading event to outrank the directory.
+          const current = getNowPlayingSnapshot();
+          updateActiveMetadata({
+            title: current.title,
+            artist: current.artist,
+            artworkUrl: current.artworkUrl ?? STATION_ARTWORK,
+          });
+          return;
+        }
         receiveStreamMetadata(metadata);
         if (IS_NATIVE_PLATFORM) {
           const title = cleanMetadataText(metadata.title);
@@ -186,13 +219,17 @@ async function initialize() {
         }
       });
       player.addEventListener(playerModule.Event.MediaMetadataChanged, (metadata) => {
+        // Live365's HLS playlist does not identify the current song. Treating
+        // its generic asset metadata as stream metadata would permanently outrank
+        // the directory fallback. Live365 API metadata is authoritative for HLS.
+        if (isHlsItem(player.getActiveMediaItem())) return;
         receiveEffectiveMetadata(normalizeEffectiveMetadata(metadata));
       });
       AppState.addEventListener("change", (state) => {
         if (state === "active") {
           reconcileFromNative();
           const item = player.getActiveMediaItem();
-          if (item) receiveEffectiveMetadata(item);
+          if (item && !isHlsItem(item)) receiveEffectiveMetadata(item);
           refreshMetadataFallback();
         }
       });
@@ -217,6 +254,24 @@ export function subscribeToRadioPlayer(observer: () => void): () => void {
   return () => { observers.delete(observer); };
 }
 
+export function getRadioTransportSnapshot(): RadioTransport {
+  return transportPreference;
+}
+
+export function subscribeToRadioTransport(observer: () => void): () => void {
+  transportObservers.add(observer);
+  return () => { transportObservers.delete(observer); };
+}
+
+/** Development diagnostic preference; changing it always requires a fresh Play. */
+export function setRadioTransport(next: RadioTransport): void {
+  if (next === transportPreference) return;
+  transportPreference = next;
+  pauseRadio();
+  resetNowPlaying();
+  transportObservers.forEach((observer) => observer());
+}
+
 export async function playRadio(): Promise<void> {
   if (wantsPlayback || snapshot.status === "playing") return;
   const recovering = snapshot.status === "error";
@@ -236,14 +291,21 @@ export async function playRadio(): Promise<void> {
     const player = playerModule.default;
     const current = player.getActiveMediaItem();
     const state = player.getPlaybackState();
-    if (recovering || current?.mediaId !== STATION.id || state === playerModule.PlaybackState.Error ||
+    if (recovering || current?.mediaId !== STATION.id || !itemMatchesTransportPreference(current) ||
+      state === playerModule.PlaybackState.Error ||
       state === playerModule.PlaybackState.Ended || state === playerModule.PlaybackState.Idle) {
       const controller = new AbortController();
       request = controller;
       const station = await getStationInfo({ signal: controller.signal });
       if (attempt !== generation) return;
       request = null;
-      const stream = station.preferredStream;
+      // HLS has a timestamped live window, so native players can recover at the
+      // live edge after a network handoff instead of replaying an MP3 mount's
+      // burst-on-connect buffer. Keep the direct stream as a compatibility
+      // fallback, but only while Live365 reports the station as playable.
+      const stream = transportPreference === "hls" && station.preferredStream && station.hlsUrl
+        ? { url: station.hlsUrl, mimeType: HLS_MIME_TYPE }
+        : station.preferredStream;
       if (!stream) throw new Error("WLFM has no available supported listening stream. Try again later.");
       const currentUrl = typeof current?.url === "string" ? current.url :
         typeof current?.url === "object" ? current.url.uri : null;
@@ -256,12 +318,18 @@ export async function playRadio(): Promise<void> {
           mediaId: STATION.id,
           url: {
             uri: stream.url,
-            headers: {
-              "Icy-MetaData": "1",
-              "User-Agent": "WLFM/1.0 (Android)",
-            },
+            ...(stream.mimeType === HLS_MIME_TYPE ? {} : {
+              headers: {
+                "Icy-MetaData": "1",
+                "User-Agent": "WLFM/1.0 (Android)",
+              },
+            }),
           },
           mimeType: stream.mimeType,
+          extras: {
+            [PLAYBACK_TRANSPORT_EXTRA]: stream.mimeType === HLS_MIME_TYPE ? HLS_TRANSPORT : "mp3",
+            [TRANSPORT_PREFERENCE_EXTRA]: transportPreference,
+          },
           ...FALLBACK_NOW_PLAYING,
           artist: formatNativeArtist(FALLBACK_NOW_PLAYING.artist),
           isLive: true,

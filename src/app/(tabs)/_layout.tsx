@@ -1,3 +1,4 @@
+import { usePathname } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { DynamicColorIOS, Platform } from "react-native";
 
@@ -10,6 +11,8 @@ export default function TabLayout() {
   const theme = useAppTheme();
   const nowPlaying = useNowPlaying();
   const player = useRadioPlayer();
+  const pathname = usePathname();
+  const showMiniPlayer = player.hasRequestedPlayback && pathname !== "/";
   const tabIconColor = Platform.OS === "ios"
     ? DynamicColorIOS({
         light: "#000000",
@@ -22,7 +25,7 @@ export default function TabLayout() {
       iconColor={tabIconColor}
       tintColor={tabIconColor}
     >
-      {player.hasRequestedPlayback && (
+      {showMiniPlayer && (
         <NativeTabs.BottomAccessory>
           <MiniPlayer
             artist={nowPlaying.artist}

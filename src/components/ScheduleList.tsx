@@ -1,18 +1,15 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, SectionList, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, SectionList, Text, TextInput, View } from "react-native";
 
 import { ScheduleEventCard } from "@/components/ScheduleEventCard";
 import { ScheduleFilters } from "@/components/ScheduleFilters";
 import { ScheduleSectionHeader } from "@/components/ScheduleSectionHeader";
-import { createThemedStyles } from "@/hooks/useThemedStyles";
 import type { ScheduleLoadError, ScheduleStatus } from "@/hooks/useSchedule";
+import { createThemedStyles } from "@/hooks/useThemedStyles";
 import {
   filterScheduleSections,
-  formatEventTime,
-  formatScheduleDate,
   formatShortScheduleDate,
-  getStationDateKey,
   type ScheduleSection,
 } from "@/services/schedule";
 import type { ScheduleEvent, TimedScheduleEvent } from "@/types/schedule";
@@ -53,17 +50,12 @@ function Header({
   return (
     <View style={styles.header}>
       <View style={styles.headingRow}>
-        <Text accessibilityRole="header" style={styles.heading}>Schedule</Text>
+        <View style={styles.headingBlock}>
+          <Text accessibilityRole="header" style={styles.heading}>Schedule</Text>
+        </View>
         <View style={styles.headingActions}>
           {hasFilters && (
-            <Pressable
-              accessibilityLabel="Clear schedule filters"
-              accessibilityRole="button"
-              onPress={onClear}
-              style={({ pressed }) => [styles.clearFiltersButton, pressed && styles.buttonPressed]}
-            >
-              <Text style={styles.clearFiltersText}>Clear filters</Text>
-            </Pressable>
+            <RetryButton compact label="Clear filters" onPress={onClear} />
           )}
           <Pressable
             accessibilityLabel={searchVisible ? "Close schedule search" : "Search schedule"}
@@ -79,20 +71,34 @@ function Header({
           </Pressable>
         </View>
       </View>
+      <View style={styles.scheduleMeta}>
+        <View style={styles.metaItem}>
+          <Ionicons color={theme.colors.muted} name="calendar-outline" size={15} />
+          <Text style={styles.metaText}>Next 14 days</Text>
+        </View>
+        <View style={styles.metaDivider} />
+        <View style={styles.metaItem}>
+          <Ionicons color={theme.colors.muted} name="time-outline" size={15} />
+          <Text style={styles.metaText}>Central time</Text>
+        </View>
+      </View>
       {searchVisible && (
-        <TextInput
-          accessibilityLabel="Search scheduled programs"
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoFocus
-          clearButtonMode="while-editing"
-          onChangeText={onChangeQuery}
-          placeholder="Search programs..."
-          placeholderTextColor={theme.colors.muted}
-          returnKeyType="search"
-          style={styles.searchInput}
-          value={query}
-        />
+        <View style={styles.searchField}>
+          <Ionicons color={theme.colors.muted} name="search" size={20} />
+          <TextInput
+            accessibilityLabel="Search scheduled programs"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoFocus
+            clearButtonMode="while-editing"
+            onChangeText={onChangeQuery}
+            placeholder="Search programs..."
+            placeholderTextColor={theme.colors.muted}
+            returnKeyType="search"
+            style={styles.searchInput}
+            value={query}
+          />
+        </View>
       )}
       {error && (
         <View accessibilityLiveRegion="polite" style={styles.refreshWarning}>
@@ -107,55 +113,29 @@ function Header({
   );
 }
 
-function ScheduleHighlight({ currentEvent, nextEvent, sections }: Pick<
-  ScheduleListProps,
-  "currentEvent" | "nextEvent"
-> & { readonly sections: readonly ScheduleSection[] }) {
-  const { styles } = useStyles();
-  const includesEvent = (event: TimedScheduleEvent | null) => event !== null && sections.some(
-    (section) => section.data.some((item) => item.id === event.id),
-  );
-  const visibleCurrentEvent = includesEvent(currentEvent) ? currentEvent : null;
-  const visibleNextEvent = includesEvent(nextEvent) ? nextEvent : null;
-  const nextTime = visibleNextEvent ? formatEventTime(visibleNextEvent) : null;
-
-  if (!visibleCurrentEvent && (!visibleNextEvent || !nextTime)) return null;
-
-  return (
-    <View style={styles.highlightContainer}>
-      {visibleCurrentEvent ? (
-        <View accessible accessibilityLabel={`On air now, ${visibleCurrentEvent.title}`} style={[styles.highlight, styles.liveHighlight]}>
-          <Text style={[styles.eyebrow, styles.liveText]}>ON AIR NOW</Text>
-          <Text style={styles.highlightTitle}>{visibleCurrentEvent.title}</Text>
-        </View>
-      ) : visibleNextEvent && nextTime ? (
-        <View
-          accessible
-          accessibilityLabel={`Up next, ${visibleNextEvent.title}, ${formatScheduleDate(getStationDateKey(visibleNextEvent))}, ${nextTime.accessibilityLabel}`}
-          style={styles.highlight}
-        >
-          <Text style={styles.eyebrow}>UP NEXT</Text>
-          <Text style={styles.highlightTitle}>{visibleNextEvent.title}</Text>
-          <Text style={styles.highlightDetail}>
-            {formatShortScheduleDate(getStationDateKey(visibleNextEvent))} · {nextTime.display}
-          </Text>
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-function RetryButton({ label, onPress }: { readonly label: string; readonly onPress: () => void }) {
+function RetryButton({
+  compact = false,
+  label,
+  onPress,
+}: {
+  readonly compact?: boolean;
+  readonly label: string;
+  readonly onPress: () => void;
+}) {
   const { styles } = useStyles();
 
   return (
     <Pressable
-      accessibilityLabel={`${label} loading the schedule`}
+      accessibilityLabel={label}
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+      style={({ pressed }) => [
+        styles.button,
+        compact && styles.compactButton,
+        pressed && styles.buttonPressed,
+      ]}
     >
-      <Text style={styles.buttonText}>{label}</Text>
+      <Text style={[styles.buttonText, compact && styles.compactButtonText]}>{label}</Text>
     </Pressable>
   );
 }
@@ -165,8 +145,12 @@ function ScreenHeading() {
 
   return (
     <View style={styles.header}>
+      <View style={styles.eyebrowRow}>
+        <View style={styles.eyebrowDot} />
+        <Text style={styles.eyebrow}>PROGRAM GUIDE</Text>
+      </View>
       <Text accessibilityRole="header" style={styles.heading}>Schedule</Text>
-      <Text style={styles.subheading}>WLFM programs for the next 14 days · Central Time</Text>
+      <Text style={styles.subheading}>Discover what’s playing on WLFM over the next two weeks.</Text>
     </View>
   );
 }
@@ -258,7 +242,9 @@ export function ScheduleList({
       <View style={styles.stateScreen}>
         <ScreenHeading />
         <View accessibilityLiveRegion="polite" style={styles.centeredState}>
-          <ActivityIndicator accessibilityLabel="Loading schedule" color={theme.colors.text} size="large" />
+          <View style={styles.stateArtwork}>
+            <ActivityIndicator accessibilityLabel="Loading schedule" color={theme.colors.text} size="large" />
+          </View>
           <Text style={styles.stateTitle}>Loading schedule…</Text>
         </View>
       </View>
@@ -270,6 +256,9 @@ export function ScheduleList({
       <View style={styles.stateScreen}>
         <ScreenHeading />
         <View accessibilityLiveRegion="polite" style={styles.centeredState}>
+          <View style={styles.stateArtwork}>
+            <Ionicons color={theme.colors.error} name="warning-outline" size={30} />
+          </View>
           <Text accessibilityRole="header" style={styles.stateTitle}>{error.title}</Text>
           <Text style={styles.stateMessage}>{error.message}</Text>
           <RetryButton label="Retry" onPress={onRetry} />
@@ -316,11 +305,6 @@ export function ScheduleList({
             onSelectDate={setSelectedDate}
             selectedDate={selectedDate}
           />
-          <ScheduleHighlight
-            currentEvent={currentEvent}
-            nextEvent={nextEvent}
-            sections={filteredSections}
-          />
         </View>
       )}
       refreshControl={(
@@ -336,10 +320,16 @@ export function ScheduleList({
       onScrollEndDrag={handleScrollEndDrag}
       renderItem={({ item }) => (
         <View style={styles.contentWidth}>
-          <ScheduleEventCard event={item} isOnAir={currentEvent?.id === item.id} />
+          <ScheduleEventCard
+            event={item}
+            isOnAir={currentEvent?.id === item.id}
+            isUpNext={nextEvent?.id === item.id}
+          />
         </View>
       )}
-      renderSectionHeader={({ section }) => <ScheduleSectionHeader title={section.title} />}
+      renderSectionHeader={({ section }) => (
+        <ScheduleSectionHeader eventCount={section.data.length} title={section.title} />
+      )}
       sections={filteredSections}
       stickySectionHeadersEnabled
     />
@@ -353,9 +343,9 @@ const useStyles = createThemedStyles((theme) => ({
   header: {
     width: "100%",
     maxWidth: theme.contentMaxWidth,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.xl,
-    paddingBottom: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: 0,
     gap: theme.spacing.sm,
     alignSelf: "center",
   },
@@ -367,24 +357,36 @@ const useStyles = createThemedStyles((theme) => ({
   },
   headingRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-end",
     justifyContent: "space-between",
     gap: theme.spacing.md,
+  },
+  headingBlock: {
+    flexShrink: 1,
+    gap: 2,
+  },
+  eyebrowRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  eyebrowDot: {
+    width: 7,
+    height: 7,
+    backgroundColor: theme.colors.accent,
+    borderRadius: 4,
+  },
+  eyebrow: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "800",
+    letterSpacing: 1.7,
   },
   headingActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing.sm,
-  },
-  clearFiltersButton: {
-    minHeight: 44,
-    justifyContent: "center",
-  },
-  clearFiltersText: {
-    color: theme.colors.text,
-    fontSize: 14,
-    fontWeight: "700",
-    textDecorationLine: "underline",
   },
   searchButton: {
     width: 48,
@@ -395,63 +397,61 @@ const useStyles = createThemedStyles((theme) => ({
     borderColor: theme.colors.border,
     borderWidth: 1,
     borderRadius: theme.radius.pill,
+    shadowColor: theme.shadow.color,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: theme.scheme === "dark" ? 0.2 : 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  searchInput: {
+  searchField: {
     width: "100%",
-    maxWidth: 400,
-    minHeight: 48,
-    paddingHorizontal: theme.spacing.md,
-    alignSelf: "flex-end",
-    color: theme.colors.text,
-    fontSize: theme.fontSize.body,
+    minHeight: 52,
+    marginTop: theme.spacing.sm,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
     backgroundColor: theme.colors.surface,
     borderColor: theme.colors.border,
     borderWidth: 1,
     borderRadius: theme.radius.md,
+  },
+  searchInput: {
+    minWidth: 0,
+    flex: 1,
+    paddingVertical: 12,
+    color: theme.colors.text,
+    fontSize: 15,
   },
   subheading: {
     color: theme.colors.muted,
     fontSize: theme.fontSize.body,
     lineHeight: 24,
   },
-  highlight: {
-    padding: theme.spacing.lg,
-    gap: theme.spacing.xs,
-    backgroundColor: theme.colors.surfaceMuted,
-    borderColor: theme.colors.border,
-    borderWidth: 1,
-    borderRadius: theme.radius.lg,
+  scheduleMeta: {
+    minHeight: 16,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+
+    gap: theme.spacing.sm,
   },
-  highlightContainer: {
-    width: "100%",
-    maxWidth: theme.contentMaxWidth,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    alignSelf: "center",
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
   },
-  liveHighlight: {
-    backgroundColor: theme.colors.liveSurface,
-    borderColor: theme.colors.live,
-  },
-  eyebrow: {
+  metaText: {
     color: theme.colors.muted,
-    fontSize: theme.fontSize.caption,
-    fontWeight: "800",
-    letterSpacing: 1.5,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "600",
   },
-  liveText: {
-    color: theme.colors.live,
-  },
-  highlightTitle: {
-    color: theme.colors.text,
-    fontSize: 20,
-    lineHeight: 28,
-    fontWeight: "700",
-  },
-  highlightDetail: {
-    color: theme.colors.muted,
-    fontSize: theme.fontSize.body,
-    lineHeight: 24,
+  metaDivider: {
+    width: 3,
+    height: 3,
+    backgroundColor: theme.colors.border,
+    borderRadius: 2,
   },
   refreshWarning: {
     marginTop: theme.spacing.md,
@@ -494,10 +494,19 @@ const useStyles = createThemedStyles((theme) => ({
     fontSize: theme.fontSize.body,
     fontWeight: "700",
   },
+  compactButton: {
+    minHeight: 44,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    alignSelf: "center",
+  },
+  compactButtonText: {
+    fontSize: 14,
+  },
   centeredState: {
     width: "100%",
     maxWidth: theme.contentMaxWidth,
-    paddingHorizontal: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.xxl,
     alignItems: "flex-start",
     gap: theme.spacing.md,
@@ -506,10 +515,20 @@ const useStyles = createThemedStyles((theme) => ({
   emptyState: {
     width: "100%",
     maxWidth: theme.contentMaxWidth,
-    paddingHorizontal: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.xl,
     gap: theme.spacing.md,
     alignSelf: "center",
+  },
+  stateArtwork: {
+    width: 56,
+    height: 56,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surfaceMuted,
+    borderColor: theme.colors.border,
+    borderWidth: 1,
+    borderRadius: theme.radius.pill,
   },
   stateTitle: {
     color: theme.colors.text,

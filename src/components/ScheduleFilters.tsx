@@ -1,4 +1,5 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { Pressable, ScrollView, Text, View } from "react-native";
 
 import { createThemedStyles } from "@/hooks/useThemedStyles";
 
@@ -50,7 +51,9 @@ function DateChip({ label, selected, onPress }: {
   readonly selected: boolean;
   readonly onPress: () => void;
 }) {
-  const { styles } = useStyles();
+  const { styles, theme } = useStyles();
+  const [weekday, date] = label.split(", ");
+  const isAll = label === "All";
 
   return (
     <Pressable
@@ -63,7 +66,23 @@ function DateChip({ label, selected, onPress }: {
         pressed && styles.pressed,
       ]}
     >
-      <Text style={[styles.dateChipText, selected && styles.selectedDateChipText]}>{label}</Text>
+      {isAll ? (
+        <>
+          <Ionicons
+            color={selected ? theme.colors.accentText : theme.colors.muted}
+            name="apps-outline"
+            size={20}
+          />
+          <Text style={[styles.dateChipText, selected && styles.selectedDateChipText]}>All</Text>
+        </>
+      ) : (
+        <>
+          <Text style={[styles.weekday, selected && styles.selectedDateChipText]}>
+            {weekday?.toLocaleUpperCase("en-US")}
+          </Text>
+          <Text style={[styles.date, selected && styles.selectedDateChipText]}>{date}</Text>
+        </>
+      )}
     </Pressable>
   );
 }
@@ -71,31 +90,75 @@ function DateChip({ label, selected, onPress }: {
 const useStyles = createThemedStyles((theme) => ({
   container: {
     width: "100%",
+    paddingTop: theme.spacing.sm,
     gap: theme.spacing.sm,
     alignSelf: "stretch",
   },
+  labelRow: {
+    width: "100%",
+    maxWidth: theme.contentMaxWidth,
+    paddingHorizontal: theme.spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "center",
+  },
+  labelIcon: {
+    color: theme.colors.muted,
+  },
+  label: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "800",
+    letterSpacing: 1.4,
+  },
   dateList: {
-    paddingLeft: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.sm,
   },
   dateChip: {
-    minHeight: 44,
-    paddingHorizontal: theme.spacing.md,
+    minWidth: 76,
+    minHeight: 68,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
+    gap: 2,
     backgroundColor: theme.colors.surface,
     borderColor: theme.colors.border,
     borderWidth: 1,
-    borderRadius: theme.radius.pill,
+    borderRadius: theme.radius.md,
+    shadowColor: theme.shadow.color,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: theme.scheme === "dark" ? 0.18 : 0.06,
+    shadowRadius: 6,
+    elevation: 1,
   },
   selectedDateChip: {
     backgroundColor: theme.colors.accent,
     borderColor: theme.colors.accent,
+    shadowOpacity: 0.14,
+    elevation: 2,
   },
   dateChipText: {
     color: theme.colors.text,
-    fontSize: 14,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: "700",
+  },
+  weekday: {
+    color: theme.colors.muted,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: "800",
+    letterSpacing: 1.1,
+  },
+  date: {
+    color: theme.colors.text,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "800",
   },
   selectedDateChipText: {
     color: theme.colors.accentText,
