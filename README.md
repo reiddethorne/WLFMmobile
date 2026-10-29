@@ -191,7 +191,7 @@ by the user. No native dependency/config
 changed in Stage 2, so an existing Stage 1 development build only needs `npm start`.
 
 On iOS and Android, open the app and confirm API Connected, URL available, and
-title/artist (or LIVE/WLFM fallbacks). Turn off network access and press Refresh:
+title/artist (or WLFM/station-slogan fallbacks). Turn off network access and press Refresh:
 an error should appear, with Play still disabled. Restore connectivity and Refresh:
 the connection should recover. Navigate away during a request to verify cleanup.
 These describe the Stage 2 checkpoint; Play is now enabled in Stage 3.
@@ -228,7 +228,7 @@ No native dependency/configuration changed in this stage.
 Failed connections offer explicit Retry. Native error recovery calls `retry()`
 then `play()`. A stalled start fails after 30 seconds; retry reloads the stream.
 No automatic retries or metadata polling occur. Station fallback metadata is
-LIVE/WLFM; stream-driven metadata is disabled until Stage 5. Native Play/Pause
+WLFM/the station slogan; stream-driven metadata is disabled until Stage 5. Native Play/Pause
 commands are the minimum needed to restrict the media session to radio controls;
 Stage 4 reviews/tests background behavior, interruptions, and native controls.
 
@@ -280,7 +280,7 @@ device acceptance was confirmed by the user before Stage 4 began.
 The player requests exclusive music audio focus and uses Track Player's native
 Play/Pause handling. Native handling continues to work when React Native's
 JavaScript runtime is suspended, and seek/next/previous remain unavailable.
-The queued live item supplies `LIVE`, `WLFM`, and a bundled WLFM image to iOS
+The queued live item supplies `WLFM`, the station slogan, and a bundled WLFM image to iOS
 Now Playing, Android's media notification, Bluetooth, and other media surfaces.
 
 The setup explicitly enables route-loss handling. Disconnecting wired headphones
@@ -377,8 +377,8 @@ Missing, blank, malformed, or non-HTTPS metadata falls back to the bundled WLFM
 image and:
 
 ```text
-LIVE
-Student Radio
+WLFM
+The only alternative in the valley.
 ```
 
 The temporary home-screen `NowPlaying` component displays title, artist, and
@@ -408,7 +408,7 @@ npm start
 
 Test on both iOS and Android:
 
-1. Before playback, confirm `LIVE` / `Student Radio` and bundled artwork.
+1. Before playback, confirm `WLFM` / `The only alternative in the valley.` and bundled artwork.
 2. Press Play and confirm the current stream title and artist appear without an
    audio restart; matching Live365 artwork may follow.
 3. Check that the lock screen or Android notification shows the same metadata.

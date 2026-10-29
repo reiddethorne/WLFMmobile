@@ -103,7 +103,6 @@ const useStyles = createThemedStyles((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing.sm,
-    backgroundColor: theme.colors.surface,
   },
   inline: {
     flex: 1,
@@ -111,7 +110,6 @@ const useStyles = createThemedStyles((theme) => ({
     height: "100%",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.surface,
   },
   artwork: {
     width: 48,

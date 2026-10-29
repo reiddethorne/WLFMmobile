@@ -1,3 +1,4 @@
+import { STATION } from "../config/station";
 import { STATION_ARTWORK } from "../constants/assets";
 import type {
   NativeMetadataUpdate,
@@ -10,8 +11,8 @@ import { cleanMetadataText } from "../utils/metadataText";
 import { getStationInfo } from "./live365";
 
 export const FALLBACK_NOW_PLAYING = {
-  title: "LIVE",
-  artist: "Student Radio",
+  title: STATION.name,
+  artist: STATION.slogan,
 } as const;
 
 const POLL_INTERVAL_MS = 30_000;

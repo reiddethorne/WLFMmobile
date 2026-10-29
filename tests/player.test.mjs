@@ -60,7 +60,7 @@ async function runtime(t, platform = "android") {
     writeFile(join(folder, "station.mjs"), `export const STATION = {id:'a98536', name:'WLFM'};`),
     writeFile(join(folder, "assets.mjs"), `export const STATION_ARTWORK = 42;`),
     writeFile(join(folder, "metadata.mjs"), `
-      export const FALLBACK_NOW_PLAYING = {title:'LIVE', artist:'Student Radio'};
+      export const FALLBACK_NOW_PLAYING = {title:'WLFM', artist:'The only alternative in the valley.'};
       export const nowPlayingSnapshot = {title:'API Song', artist:'API Artist', artworkUrl:'https://media.live365.com/api.jpg'};
       export const controls = {active:[], raw:[], effective:[], resets:0, refreshes:0, updater:null};
       export function configureNativeMetadataUpdater(updater) {controls.updater=updater;}
@@ -113,8 +113,8 @@ test("simultaneous Play calls initialize once and build one live HLS station ite
     playbackTransport:"hls", transportPreference:"hls",
   });
   assert.equal(native.control.item.url.uri, "https://streaming.live365.com/a98536/playlist.m3u8");
-  assert.equal(native.control.item.title, "LIVE");
-  assert.equal(native.control.item.artist, "Student Radio - WLFM");
+  assert.equal(native.control.item.title, "WLFM");
+  assert.equal(native.control.item.artist, "The only alternative in the valley. - WLFM");
   assert.equal(native.control.item.artworkUrl, 42);
   assert.deepEqual(native.control.item.url.headers, {
     "User-Agent":"WLFM/1.0 (Android)",
@@ -172,7 +172,7 @@ test("replaces a legacy native item that has no transport marker", async (t) => 
   const { player, native } = await runtime(t);
   native.control.item = {
     mediaId:"a98536", url:"https://streaming.live365.com/a98536",
-    mimeType:"audio/mpeg", title:"LIVE", artist:"Student Radio - WLFM", isLive:true,
+    mimeType:"audio/mpeg", title:"WLFM", artist:"The only alternative in the valley. - WLFM", isLive:true,
   };
   native.control.state = "ready";
   await player.playRadio();
@@ -296,8 +296,8 @@ test("native pause updates the screen and unsubscribed observers stay removed", 
 test("HLS ignores fallback stream events and restores API metadata to the native item", async (t) => {
   const { player, native, metadata } = await runtime(t);
   await player.playRadio(); native.audible();
-  native.emit("metadata", {title:"LIVE", artist:"Student Radio - WLFM"});
-  native.emit("effectiveMetadata", {title:"LIVE", artist:"Student Radio - WLFM"});
+  native.emit("metadata", {title:"WLFM", artist:"The only alternative in the valley. - WLFM"});
+  native.emit("effectiveMetadata", {title:"WLFM", artist:"The only alternative in the valley. - WLFM"});
   assert.deepEqual(metadata.controls.raw, []);
   assert.deepEqual(metadata.controls.effective, []);
   assert.equal(native.control.item.title, "API Song");
@@ -315,7 +315,7 @@ for (const platform of ["ios", "android"]) {
     const { player, native, live365, metadata } = await runtime(t, platform);
     live365.controls.load = async () => ({ ...live365.station, hlsUrl: null });
     await player.playRadio();
-    assert.equal(native.control.item.artist, "Student Radio - WLFM");
+    assert.equal(native.control.item.artist, "The only alternative in the valley. - WLFM");
 
     native.emit("metadata", {title:"Everybody`s Talkin’", artist:"D´Angelo"});
     assert.deepEqual(metadata.controls.raw, [{title:"Everybody`s Talkin’", artist:"D´Angelo"}]);

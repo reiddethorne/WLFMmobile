@@ -12,6 +12,7 @@ async function runtime(t) {
   const compiled = ts.transpileModule(source, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
   }).outputText
+    .replaceAll('"../config/station"', '"./station.mjs"')
     .replaceAll('"../constants/assets"', '"./assets.mjs"')
     .replaceAll('"../utils/metadataText"', '"./metadataText.mjs"')
     .replaceAll('"./live365"', '"./live365.mjs"');
@@ -22,6 +23,7 @@ async function runtime(t) {
   await Promise.all([
     writeFile(join(folder, "metadata.mjs"), compiled),
     writeFile(join(folder, "metadataText.mjs"), compiledText),
+    writeFile(join(folder, "station.mjs"), `export const STATION = {name:"WLFM", slogan:"The only alternative in the valley."};`),
     writeFile(join(folder, "assets.mjs"), `export const STATION_ARTWORK = 42;`),
     writeFile(join(folder, "live365.mjs"), `
       export const controls = {calls:0, result:null, recent:[], load:null, signal:null};
@@ -55,7 +57,7 @@ const apiTrack = {
 test("metadata starts with the documented station fallback", async (t) => {
   const { metadata, live365 } = await runtime(t);
   assert.deepEqual(metadata.getNowPlayingSnapshot(), {
-    title: "LIVE", artist: "Student Radio", artworkUrl: null, source: "fallback",
+    title: "WLFM", artist: "The only alternative in the valley.", artworkUrl: null, source: "fallback",
   });
   assert.equal(live365.controls.calls, 0);
 });
@@ -89,7 +91,7 @@ test("recently played loads without activating now-playing metadata", async (t) 
   assert.equal(live365.controls.calls, 1);
   assert.deepEqual(metadata.getRecentlyPlayedSnapshot(), { tracks: recent, status: "ready" });
   assert.deepEqual(metadata.getNowPlayingSnapshot(), {
-    title: "LIVE", artist: "Student Radio", artworkUrl: null, source: "fallback",
+    title: "WLFM", artist: "The only alternative in the valley.", artworkUrl: null, source: "fallback",
   });
   assert.equal(updates, 1);
   metadata.setMetadataPlaybackActive(true);
@@ -172,9 +174,9 @@ test("invalid metadata and unsafe artwork degrade to the bundled fallback", asyn
   await new Promise((done) => setImmediate(done));
   metadata.receiveStreamMetadata({ title: "\n", artist: "  ", artworkUrl: 123 });
   assert.deepEqual(metadata.getNowPlayingSnapshot(), {
-    title: "LIVE", artist: "Student Radio", artworkUrl: null, source: "fallback",
+    title: "WLFM", artist: "The only alternative in the valley.", artworkUrl: null, source: "fallback",
   });
-  assert.deepEqual(nativeUpdates.at(-1), { title: "LIVE", artist: "Student Radio", artworkUrl: 42 });
+  assert.deepEqual(nativeUpdates.at(-1), { title: "WLFM", artist: "The only alternative in the valley.", artworkUrl: 42 });
 });
 
 test("stopping playback aborts a fallback request and rejects its stale result", async (t) => {
