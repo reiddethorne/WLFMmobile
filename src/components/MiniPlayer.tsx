@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { useState } from "react";
 import { ActivityIndicator, Image, Pressable, Text, View } from "react-native";
 
 import { STATION_ARTWORK } from "@/constants/assets";
@@ -7,6 +8,7 @@ import { createThemedStyles } from "@/hooks/useThemedStyles";
 import type { RadioPlayerStatus } from "@/types/player";
 
 interface MiniPlayerProps {
+  readonly artworkUrl: string | null;
   readonly artist: string;
   readonly canPause: boolean;
   readonly onTogglePlayback: () => void;
@@ -15,6 +17,7 @@ interface MiniPlayerProps {
 }
 
 export function MiniPlayer({
+  artworkUrl,
   artist,
   canPause,
   onTogglePlayback,
@@ -23,6 +26,8 @@ export function MiniPlayer({
 }: MiniPlayerProps) {
   const placement = NativeTabs.BottomAccessory.usePlacement();
   const { styles, theme } = useStyles();
+  const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
+  const remoteArtwork = artworkUrl !== null && artworkUrl !== failedArtwork;
   const loading = status === "connecting" || status === "buffering";
   const mode = canPause ? "pause" : status === "error" ? "retry" : "play";
   const buttonLabel = mode === "pause"
@@ -71,9 +76,10 @@ export function MiniPlayer({
     <View style={styles.regular}>
       <Image
         accessibilityIgnoresInvertColors
-        accessibilityLabel="WLFM station logo"
+        accessibilityLabel={remoteArtwork ? `${title} artwork` : "WLFM station logo"}
+        onError={() => { if (artworkUrl) setFailedArtwork(artworkUrl); }}
         resizeMode="cover"
-        source={STATION_ARTWORK}
+        source={remoteArtwork ? { uri: artworkUrl } : STATION_ARTWORK}
         style={styles.artwork}
       />
       <View
@@ -114,7 +120,6 @@ const useStyles = createThemedStyles((theme) => ({
   artwork: {
     width: 48,
     height: 48,
-    borderRadius: theme.radius.md,
   },
   metadata: {
     flex: 1,

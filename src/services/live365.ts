@@ -54,6 +54,18 @@ function httpsUrl(value: unknown): string | null {
   }
 }
 
+function artworkUrl(value: unknown): string | null {
+  const candidate = httpsUrl(value);
+  if (!candidate) return null;
+  const url = new URL(candidate);
+  // Live365 serves this image when it has no cover art. Treat it as missing so
+  // every app and native-media surface uses the bundled WLFM artwork instead.
+  return url.hostname === "broadcaster.live365.com" &&
+    url.pathname === "/static/assets/img/blankart.jpg"
+    ? null
+    : candidate;
+}
+
 function listeningUrl(value: unknown, stationId: string, hls = false): string | null {
   const candidate = httpsUrl(value);
   if (!candidate) return null;
@@ -74,7 +86,7 @@ function parseNowPlaying(value: unknown): Live365NowPlaying | null {
   const artist = text(value.artist);
   // An artwork-only object is not a current song.
   if (!title && !artist) return null;
-  return { title, artist, artworkUrl: httpsUrl(value.art) };
+  return { title, artist, artworkUrl: artworkUrl(value.art) };
 }
 
 function dateTime(value: unknown): string | null {

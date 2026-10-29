@@ -55,6 +55,7 @@ export default function TabLayout() {
         <NativeTabs.BottomAccessory>
           {showMiniPlayer ? (
             <MiniPlayer
+              artworkUrl={nowPlaying.artworkUrl}
               artist={nowPlaying.artist}
               canPause={player.canPause}
               onTogglePlayback={player.togglePlayback}

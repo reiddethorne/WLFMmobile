@@ -84,6 +84,23 @@ test("partial metadata and invalid bitrate/artwork remain usable", () => {
   assert.equal(parsed.preferredStream.bitrateKbps, null);
 });
 
+test("Live365 blank artwork falls back to the bundled station logo", () => {
+  const blankArtwork = "https://broadcaster.live365.com/static/assets/img/blankart.jpg";
+  const parsed = parseStationInfo({
+    ...fixture,
+    "current-track": { title: "Current Song", artist: "Current Artist", art: blankArtwork },
+    "last-played": [{
+      title: "Previous Song",
+      artist: "Previous Artist",
+      art: blankArtwork,
+      start: "2026-10-08 15:54:49.29+00:00",
+    }],
+  });
+
+  assert.equal(parsed.nowPlaying.artworkUrl, null);
+  assert.equal(parsed.recentlyPlayed[0].artworkUrl, null);
+});
+
 test("song and artist character references are decoded", () => {
   const parsed = parseStationInfo({ ...fixture,
     "current-track": { title: "Don&#39;t Let Me Down", artist: "Guns N&apos; Roses" },
