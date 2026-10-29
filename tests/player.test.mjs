@@ -116,7 +116,9 @@ test("simultaneous Play calls initialize once and build one live HLS station ite
   assert.equal(native.control.item.title, "LIVE");
   assert.equal(native.control.item.artist, "Student Radio - WLFM");
   assert.equal(native.control.item.artworkUrl, 42);
-  assert.equal(native.control.item.url.headers, undefined);
+  assert.deepEqual(native.control.item.url.headers, {
+    "User-Agent":"WLFM/1.0 (Android)",
+  });
   assert.equal(metadata.controls.active.at(-1), true);
   const setup = native.control.calls.find(([name]) => name === "setup")[1];
   assert.equal(setup.audioMixing, "exclusive");

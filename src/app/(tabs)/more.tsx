@@ -1,10 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Constants from "expo-constants";
 import * as Linking from "expo-linking";
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { useThemeContext } from "@/context/ThemeContext";
 import { createThemedStyles } from "@/hooks/useThemedStyles";
 
 const APP_VERSION = Constants.expoConfig?.version ?? "Unknown";
@@ -36,14 +36,13 @@ const MORE_SECTIONS = [
     title: "Settings",
     options: [
       { label: "Sleep timer", icon: "moon-outline" },
-      { label: "Dark mode", icon: "contrast-outline" },
       { label: "Preferences", icon: "options-outline" },
     ],
   },
 ] as const;
 
 export default function More() {
-  const { isDark, setDarkMode } = useThemeContext();
+  const router = useRouter();
   const { styles, theme } = useStyles();
 
   const openExternalUrl = async (url: string) => {
@@ -85,10 +84,10 @@ export default function More() {
               {section.options.map((option, index) => {
                 const isShareStation = "shareUrl" in option;
                 const isExternalLink = "url" in option;
-                const isDarkMode = option.label === "Dark mode";
-                const isInteractive = isShareStation || isExternalLink || isDarkMode;
-                const onPress = isDarkMode
-                  ? () => setDarkMode(!isDark)
+                const isPreferences = option.label === "Preferences";
+                const isInteractive = isShareStation || isExternalLink || isPreferences;
+                const onPress = isPreferences
+                  ? () => router.push("/preferences")
                   : isShareStation
                   ? () => void shareStation()
                   : isExternalLink
@@ -99,8 +98,8 @@ export default function More() {
                   <Pressable
                     accessible
                     accessibilityHint={
-                      isDarkMode
-                        ? "Switches the app between light and dark appearance"
+                      isPreferences
+                        ? "Opens app preferences"
                         : isShareStation
                         ? "Opens the system share sheet"
                         : isExternalLink
@@ -108,8 +107,7 @@ export default function More() {
                           : undefined
                     }
                     accessibilityLabel={option.label}
-                    accessibilityRole={isDarkMode ? "switch" : isInteractive ? "button" : undefined}
-                    accessibilityState={isDarkMode ? { checked: isDark } : undefined}
+                    accessibilityRole={isInteractive ? "button" : undefined}
                     key={option.label}
                     onPress={onPress}
                     style={({ pressed }) => [
@@ -128,34 +126,20 @@ export default function More() {
                       />
                     </View>
                     <Text style={styles.optionLabel}>{option.label}</Text>
-                    {isDarkMode ? (
-                      <Switch
-                        accessibilityElementsHidden
-                        importantForAccessibility="no-hide-descendants"
-                        ios_backgroundColor={theme.colors.disabled}
-                        onValueChange={setDarkMode}
-                        pointerEvents="none"
-                        style={styles.darkModeSwitch}
-                        thumbColor={theme.colors.surface}
-                        trackColor={{ false: theme.colors.disabled, true: theme.colors.accent }}
-                        value={isDark}
-                      />
-                    ) : (
-                      <Ionicons
-                        accessibilityElementsHidden
-                        color={theme.colors.icon}
-                        importantForAccessibility="no-hide-descendants"
-                        name="chevron-forward"
-                        size={20}
-                      />
-                    )}
+                    <Ionicons
+                      accessibilityElementsHidden
+                      color={theme.colors.icon}
+                      importantForAccessibility="no-hide-descendants"
+                      name="chevron-forward"
+                      size={20}
+                    />
                   </Pressable>
                 );
               })}
             </View>
-            {section.title === "Settings" ? (
+            {section.title === "Settings" && (
               <Text style={styles.versionText}>App version {APP_VERSION}</Text>
-            ) : null}
+            )}
           </View>
         ))}
       </ScrollView>
@@ -195,11 +179,12 @@ const useStyles = createThemedStyles((theme) => ({
   },
   sectionTitle: {
     paddingHorizontal: theme.spacing.xs,
-    color: theme.colors.muted,
-    fontSize: theme.fontSize.caption,
+    paddingBottom: theme.spacing.xs,
+    color: theme.colors.text,
+    fontSize: theme.fontSize.body,
+    lineHeight: 22,
     fontWeight: "800",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
+    letterSpacing: 0.2,
   },
   versionText: {
     paddingTop: theme.spacing.xs,
@@ -245,8 +230,5 @@ const useStyles = createThemedStyles((theme) => ({
     color: theme.colors.text,
     fontSize: theme.fontSize.body,
     fontWeight: "700",
-  },
-  darkModeSwitch: {
-    alignSelf: "center",
   },
 }));

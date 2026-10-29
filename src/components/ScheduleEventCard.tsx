@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Text, View } from "react-native";
 
+import { usePreferences } from "@/context/PreferencesContext";
 import { createThemedStyles } from "@/hooks/useThemedStyles";
 import { formatEventTime } from "@/services/schedule";
 import type { ScheduleEvent } from "@/types/schedule";
@@ -12,8 +13,9 @@ interface ScheduleEventCardProps {
 }
 
 export function ScheduleEventCard({ event, isOnAir, isUpNext }: ScheduleEventCardProps) {
+  const { scheduleTimeMode } = usePreferences();
   const { styles, theme } = useStyles();
-  const time = formatEventTime(event);
+  const time = formatEventTime(event, scheduleTimeMode);
 
   return (
     <View style={[

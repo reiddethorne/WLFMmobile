@@ -22,6 +22,7 @@ const HLS_MIME_TYPE = "application/x-mpegURL";
 const PLAYBACK_TRANSPORT_EXTRA = "playbackTransport";
 const TRANSPORT_PREFERENCE_EXTRA = "transportPreference";
 const HLS_TRANSPORT = "hls";
+const STREAM_USER_AGENT = "WLFM/1.0 (Android)";
 const NATIVE_STATION_SUFFIX = ` - ${STATION.name}`;
 const IS_NATIVE_PLATFORM = Platform.OS === "ios" || Platform.OS === "android";
 
@@ -318,12 +319,12 @@ export async function playRadio(): Promise<void> {
           mediaId: STATION.id,
           url: {
             uri: stream.url,
-            ...(stream.mimeType === HLS_MIME_TYPE ? {} : {
-              headers: {
+            headers: {
+              "User-Agent": STREAM_USER_AGENT,
+              ...(stream.mimeType === HLS_MIME_TYPE ? {} : {
                 "Icy-MetaData": "1",
-                "User-Agent": "WLFM/1.0 (Android)",
-              },
-            }),
+              }),
+            },
           },
           mimeType: stream.mimeType,
           extras: {

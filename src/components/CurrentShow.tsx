@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 
+import { usePreferences } from "@/context/PreferencesContext";
 import { createThemedStyles } from "@/hooks/useThemedStyles";
 import { useSchedule } from "@/hooks/useSchedule";
 import { formatEventDate, formatEventTime } from "@/services/schedule";
@@ -22,12 +23,13 @@ interface ShowBannerProps {
 }
 
 function ShowBanner({ accessibilityPrefix, event, label, onAir = false }: ShowBannerProps) {
+  const { scheduleTimeMode } = usePreferences();
   const { styles } = useStyles();
   const [expanded, setExpanded] = useState(false);
   const disclosureProgress = useRef(new Animated.Value(0)).current;
   const textProgress = useRef(new Animated.Value(1)).current;
-  const date = formatEventDate(event);
-  const time = formatEventTime(event);
+  const date = formatEventDate(event, new Date(), scheduleTimeMode);
+  const time = formatEventTime(event, scheduleTimeMode);
   const schedule = `${date} · ${time.display}`;
   const accessibilityLabel = [
     `${accessibilityPrefix}: ${event.title}`,

@@ -2,6 +2,7 @@ import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { AppState, type AppStateStatus } from "react-native";
 
+import { usePreferences } from "@/context/PreferencesContext";
 import { buildScheduleSections, getCurrentEvent, getNextEvent } from "@/services/schedule";
 import { scheduleStore } from "@/services/scheduleState";
 export type { ScheduleLoadError, ScheduleStatus } from "@/services/scheduleState";
@@ -13,6 +14,7 @@ interface UseScheduleOptions {
 const currentClock = () => new Date();
 
 export function useSchedule({ clock = currentClock }: UseScheduleOptions = {}) {
+  const { scheduleTimeMode } = usePreferences();
   const state = useSyncExternalStore(scheduleStore.subscribe, scheduleStore.getSnapshot, scheduleStore.getSnapshot);
   const [now, setNow] = useState(clock);
   const focused = useRef(false);
@@ -54,7 +56,10 @@ export function useSchedule({ clock = currentClock }: UseScheduleOptions = {}) {
     return () => subscription.remove();
   }, [clock]);
 
-  const sections = useMemo(() => buildScheduleSections(state.events), [state.events]);
+  const sections = useMemo(
+    () => buildScheduleSections(state.events, scheduleTimeMode),
+    [scheduleTimeMode, state.events],
+  );
   const currentEvent = useMemo(() => getCurrentEvent(state.events, now), [state.events, now]);
   const nextEvent = useMemo(() => getNextEvent(state.events, now), [state.events, now]);
   const refresh = useCallback(() => { void scheduleStore.refresh(); }, []);

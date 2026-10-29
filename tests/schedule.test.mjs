@@ -28,6 +28,7 @@ const {
   formatShortScheduleDate,
   getCurrentEvent,
   getNextEvent,
+  getScheduleDateKey,
   getStationDateKey,
 } = await import(pathToFileURL(join(temp, "schedule.mjs")).href);
 
@@ -57,6 +58,25 @@ test("Intl handles the America/Chicago spring daylight-saving boundary", () => {
     display: "1:30 AM – 3:30 AM",
     accessibilityLabel: "1:30 AM CST to 3:30 AM CDT",
   });
+});
+
+test("local schedule mode formats and groups in the device timezone", () => {
+  const previousTimeZone = process.env.TZ;
+  process.env.TZ = "America/Los_Angeles";
+
+  try {
+    const event = timed("late", "2026-09-23T06:00:00Z", "2026-09-23T07:00:00Z");
+    assert.equal(getStationDateKey(event), "2026-09-23");
+    assert.equal(getScheduleDateKey(event, "local"), "2026-09-22");
+    assert.equal(buildScheduleSections([event], "local")[0]?.date, "2026-09-22");
+    assert.deepEqual(formatEventTime(event, "local"), {
+      display: "11:00 PM – 12:00 AM",
+      accessibilityLabel: "11:00 PM PDT to 12:00 AM PDT",
+    });
+  } finally {
+    if (previousTimeZone === undefined) delete process.env.TZ;
+    else process.env.TZ = previousTimeZone;
+  }
 });
 
 test("event dates say Today in the station timezone and otherwise show the scheduled date", () => {

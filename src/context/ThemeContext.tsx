@@ -14,11 +14,12 @@ import { Appearance, useColorScheme } from "react-native";
 import { DARK_THEME, LIGHT_THEME, type AppTheme } from "@/constants/theme";
 
 const THEME_PREFERENCE_KEY = "wlfm.theme-preference";
-type ThemePreference = "light" | "dark" | null;
+export type AppearancePreference = "system" | "light" | "dark";
 
 interface ThemeContextValue {
+  readonly appearance: AppearancePreference;
   readonly isDark: boolean;
-  readonly setDarkMode: (enabled: boolean) => void;
+  readonly setAppearance: (appearance: AppearancePreference) => void;
   readonly theme: AppTheme;
 }
 
@@ -26,7 +27,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: PropsWithChildren) {
   const systemScheme = useColorScheme();
-  const [preference, setPreference] = useState<ThemePreference>(null);
+  const [appearance, setAppearanceState] = useState<AppearancePreference>("system");
 
   useEffect(() => {
     let active = true;
@@ -35,9 +36,9 @@ export function ThemeProvider({ children }: PropsWithChildren) {
       if (!active) return;
       const nextPreference = storedPreference === "dark" || storedPreference === "light"
         ? storedPreference
-        : null;
-      setPreference(nextPreference);
-      Appearance.setColorScheme(nextPreference ?? "unspecified");
+        : "system";
+      setAppearanceState(nextPreference);
+      Appearance.setColorScheme(nextPreference === "system" ? "unspecified" : nextPreference);
     }).catch(() => {
       Appearance.setColorScheme("unspecified");
     });
@@ -47,21 +48,23 @@ export function ThemeProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  const isDark = (preference ?? systemScheme) === "dark";
+  const isDark = (appearance === "system" ? systemScheme : appearance) === "dark";
   const theme = isDark ? DARK_THEME : LIGHT_THEME;
 
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(theme.colors.background).catch(() => undefined);
   }, [theme]);
 
-  const setDarkMode = useCallback((enabled: boolean) => {
-    const nextPreference = enabled ? "dark" : "light";
-    setPreference(nextPreference);
-    Appearance.setColorScheme(nextPreference);
-    void AsyncStorage.setItem(THEME_PREFERENCE_KEY, nextPreference).catch(() => undefined);
+  const setAppearance = useCallback((nextAppearance: AppearancePreference) => {
+    setAppearanceState(nextAppearance);
+    Appearance.setColorScheme(nextAppearance === "system" ? "unspecified" : nextAppearance);
+    void AsyncStorage.setItem(THEME_PREFERENCE_KEY, nextAppearance).catch(() => undefined);
   }, []);
 
-  const value = useMemo(() => ({ isDark, setDarkMode, theme }), [isDark, setDarkMode, theme]);
+  const value = useMemo(
+    () => ({ appearance, isDark, setAppearance, theme }),
+    [appearance, isDark, setAppearance, theme],
+  );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

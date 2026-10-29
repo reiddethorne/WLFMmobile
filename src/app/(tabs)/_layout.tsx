@@ -13,6 +13,12 @@ export default function TabLayout() {
   const player = useRadioPlayer();
   const pathname = usePathname();
   const showMiniPlayer = player.hasRequestedPlayback && pathname !== "/";
+  const accessoryContentStyle = showMiniPlayer
+    ? {
+        paddingBottom: theme.spacing.xxxl,
+        backgroundColor: theme.colors.background,
+      }
+    : undefined;
   const tabIconColor = Platform.OS === "ios"
     ? DynamicColorIOS({
         light: "#000000",
@@ -22,6 +28,7 @@ export default function TabLayout() {
 
   return (
     <NativeTabs
+      backgroundColor={theme.colors.surface}
       iconColor={tabIconColor}
       tintColor={tabIconColor}
     >
@@ -45,12 +52,20 @@ export default function TabLayout() {
         <NativeTabs.Trigger.Label>Radio</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="schedule" accessibilityLabel="Schedule tab">
+      <NativeTabs.Trigger
+        name="schedule"
+        accessibilityLabel="Schedule tab"
+        contentStyle={accessoryContentStyle}
+      >
         <NativeTabs.Trigger.Icon sf="calendar" md="calendar_month" />
         <NativeTabs.Trigger.Label>Schedule</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="blog" accessibilityLabel="Blog tab">
+      <NativeTabs.Trigger
+        name="blog"
+        accessibilityLabel="Blog tab"
+        contentStyle={accessoryContentStyle}
+      >
         <NativeTabs.Trigger.Icon
           sf={{ default: "newspaper", selected: "newspaper.fill" }}
           md="newspaper"
@@ -58,7 +73,11 @@ export default function TabLayout() {
         <NativeTabs.Trigger.Label>Blog</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="more" accessibilityLabel="More tab">
+      <NativeTabs.Trigger
+        name="more"
+        accessibilityLabel="More tab"
+        contentStyle={accessoryContentStyle}
+      >
         <NativeTabs.Trigger.Icon
           sf={{ default: "ellipsis.circle", selected: "ellipsis.circle.fill" }}
           md="more_horiz"

@@ -1,4 +1,5 @@
 import { STATION_TIME_ZONE } from "../config/calendar";
+import type { ScheduleTimeMode } from "../context/PreferencesContext";
 import type { ScheduleEvent, TimedScheduleEvent } from "../types/schedule";
 
 export interface ScheduleSection {
@@ -11,13 +12,6 @@ export interface EventTimeLabel {
   readonly display: string;
   readonly accessibilityLabel: string;
 }
-
-const stationDateFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: STATION_TIME_ZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
 
 const sectionDateFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
@@ -33,28 +27,24 @@ const shortDateFormatter = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
 });
 
-const timeFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: STATION_TIME_ZONE,
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-const accessibleTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: STATION_TIME_ZONE,
-  hour: "numeric",
-  minute: "2-digit",
-  timeZoneName: "short",
-});
-
 function datePart(parts: readonly Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes): string {
   const value = parts.find((part) => part.type === type)?.value;
-  if (!value) throw new Error(`Intl did not provide a ${type} part for the station date.`);
+  if (!value) throw new Error(`Intl did not provide a ${type} part for the schedule date.`);
   return value;
 }
 
-function getStationDateKeyForDate(date: Date): string | null {
+function timeZoneOptions(mode: ScheduleTimeMode): Intl.DateTimeFormatOptions {
+  return mode === "station" ? { timeZone: STATION_TIME_ZONE } : {};
+}
+
+function getScheduleDateKeyForDate(date: Date, mode: ScheduleTimeMode): string | null {
   if (!Number.isFinite(date.getTime())) return null;
-  const parts = stationDateFormatter.formatToParts(date);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    ...timeZoneOptions(mode),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
   return `${datePart(parts, "year")}-${datePart(parts, "month")}-${datePart(parts, "day")}`;
 }
 
@@ -74,8 +64,13 @@ function compareSectionEvents(left: ScheduleEvent, right: ScheduleEvent): number
 
 /** Returns YYYY-MM-DD in the station timezone without using localized text for ordering. */
 export function getStationDateKey(event: ScheduleEvent): string {
+  return getScheduleDateKey(event, "station");
+}
+
+/** Returns YYYY-MM-DD in the selected display timezone. */
+export function getScheduleDateKey(event: ScheduleEvent, mode: ScheduleTimeMode): string {
   if (event.isAllDay) return event.start;
-  const date = getStationDateKeyForDate(new Date(event.start));
+  const date = getScheduleDateKeyForDate(new Date(event.start), mode);
   if (date === null) throw new Error("The event start time is invalid.");
   return date;
 }
@@ -99,27 +94,48 @@ export function formatShortScheduleDate(date: string): string {
   return shortDateFormatter.format(calendarValue);
 }
 
-export function formatEventDate(event: ScheduleEvent, now: Date = new Date()): string {
-  const eventDate = getStationDateKey(event);
-  return eventDate === getStationDateKeyForDate(now) ? "Today" : formatScheduleDate(eventDate);
+export function formatEventDate(
+  event: ScheduleEvent,
+  now: Date = new Date(),
+  mode: ScheduleTimeMode = "station",
+): string {
+  const eventDate = getScheduleDateKey(event, mode);
+  return eventDate === getScheduleDateKeyForDate(now, mode) ? "Today" : formatScheduleDate(eventDate);
 }
 
-export function formatEventTime(event: ScheduleEvent): EventTimeLabel {
+export function formatEventTime(
+  event: ScheduleEvent,
+  mode: ScheduleTimeMode = "station",
+): EventTimeLabel {
   if (event.isAllDay) {
     return { display: "All day", accessibilityLabel: "All-day event" };
   }
   const start = new Date(event.start);
   const end = new Date(event.end);
+  const timeFormatter = new Intl.DateTimeFormat("en-US", {
+    ...timeZoneOptions(mode),
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const accessibleTimeFormatter = new Intl.DateTimeFormat("en-US", {
+    ...timeZoneOptions(mode),
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
   return {
     display: `${timeFormatter.format(start)} – ${timeFormatter.format(end)}`,
     accessibilityLabel: `${accessibleTimeFormatter.format(start)} to ${accessibleTimeFormatter.format(end)}`,
   };
 }
 
-export function buildScheduleSections(events: readonly ScheduleEvent[]): readonly ScheduleSection[] {
+export function buildScheduleSections(
+  events: readonly ScheduleEvent[],
+  mode: ScheduleTimeMode = "station",
+): readonly ScheduleSection[] {
   const grouped = new Map<string, ScheduleEvent[]>();
   for (const event of events) {
-    const date = getStationDateKey(event);
+    const date = getScheduleDateKey(event, mode);
     const group = grouped.get(date) ?? [];
     group.push(event);
     grouped.set(date, group);

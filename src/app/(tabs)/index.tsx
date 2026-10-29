@@ -4,10 +4,12 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Live365Diagnostics } from "@/components/Live365Diagnostics";
 import { RadioPlayer } from "@/components/RadioPlayer";
 import { StationHeader } from "@/components/StationHeader";
+import { usePreferences } from "@/context/PreferencesContext";
 import { createThemedStyles } from "@/hooks/useThemedStyles";
 
 export default function Index() {
   const insets = useSafeAreaInsets();
+  const { showDiagnostics } = usePreferences();
   const { styles } = useStyles();
 
   return (
@@ -25,7 +27,7 @@ export default function Index() {
           </View>
           <View style={styles.content}>
             <RadioPlayer />
-            {__DEV__ && <Live365Diagnostics />}
+            {__DEV__ && showDiagnostics && <Live365Diagnostics />}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -50,7 +52,7 @@ const useStyles = createThemedStyles((theme) => ({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: theme.spacing.xxxl,
+    paddingBottom: theme.spacing.xxxl + theme.spacing.xl,
   },
   stickyHeader: {
     zIndex: 1,

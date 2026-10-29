@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, RefreshControl, SectionList, Text, TextIn
 import { ScheduleEventCard } from "@/components/ScheduleEventCard";
 import { ScheduleFilters } from "@/components/ScheduleFilters";
 import { ScheduleSectionHeader } from "@/components/ScheduleSectionHeader";
+import { usePreferences } from "@/context/PreferencesContext";
 import type { ScheduleLoadError, ScheduleStatus } from "@/hooks/useSchedule";
 import { createThemedStyles } from "@/hooks/useThemedStyles";
 import {
@@ -45,13 +46,22 @@ function Header({
   readonly query: string;
   readonly searchVisible: boolean;
 }) {
+  const { scheduleTimeMode } = usePreferences();
   const { styles, theme } = useStyles();
 
   return (
     <View style={styles.header}>
       <View style={styles.headingRow}>
         <View style={styles.headingBlock}>
-          <Text accessibilityRole="header" style={styles.heading}>Schedule</Text>
+          <Text
+            accessibilityRole="header"
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+            numberOfLines={1}
+            style={styles.heading}
+          >
+            Schedule
+          </Text>
         </View>
         <View style={styles.headingActions}>
           {hasFilters && (
@@ -79,7 +89,9 @@ function Header({
         <View style={styles.metaDivider} />
         <View style={styles.metaItem}>
           <Ionicons color={theme.colors.muted} name="time-outline" size={15} />
-          <Text style={styles.metaText}>Central time</Text>
+          <Text style={styles.metaText}>
+            {scheduleTimeMode === "station" ? "Station time (Central)" : "Local time"}
+          </Text>
         </View>
       </View>
       {searchVisible && (
@@ -359,10 +371,11 @@ const useStyles = createThemedStyles((theme) => ({
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
-    gap: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
   headingBlock: {
-    flexShrink: 1,
+    minWidth: 0,
+    flex: 1,
     gap: 2,
   },
   eyebrowRow: {
@@ -385,8 +398,10 @@ const useStyles = createThemedStyles((theme) => ({
   },
   headingActions: {
     flexDirection: "row",
+    flexShrink: 0,
     alignItems: "center",
     gap: theme.spacing.sm,
+    marginLeft: "auto",
   },
   searchButton: {
     width: 48,
