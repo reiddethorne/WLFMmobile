@@ -9,10 +9,11 @@ import ts from "typescript";
 const nativeStub = `
 export const PlaybackState = { Idle: 'idle', Ready: 'ready', Buffering: 'buffering', Ended: 'ended', Error: 'error' };
 export const PlayerCommand = { PlayPause: 'playPause' };
-export const Event = { PlaybackStateChanged: 'state', IsPlayingChanged: 'playing', PlaybackError: 'error', MetadataReceived: 'metadata', MediaMetadataChanged: 'effectiveMetadata' };
-export const control = { state: 'idle', playing: false, item: null, calls: [], setupError: false, listeners: new Map() };
+export const Event = { PlaybackStateChanged: 'state', IsPlayingChanged: 'playing', PlaybackError: 'error', MetadataReceived: 'metadata', MediaMetadataChanged: 'effectiveMetadata', SleepTimerTriggered: 'sleepTimer' };
+export const control = { state: 'idle', playing: false, item: null, sleepTimer: null, calls: [], setupError: false, listeners: new Map() };
 export function emit(event, payload) { for (const listener of control.listeners.get(event) ?? []) listener(payload); }
 export function audible() { control.state = 'ready'; control.playing = true; emit('state', {state:'ready'}); emit('playing', {playing:true}); }
+export function triggerSleepTimer() { control.sleepTimer = null; control.playing = false; control.state = control.item ? 'ready' : 'idle'; emit('sleepTimer', {type:'time'}); emit('playing', {playing:false}); }
 export default {
   setupPlayer(config) { control.calls.push(['setup', config]); if (control.setupError) throw new Error('Native setup failed'); },
   setCommands(config) { control.calls.push(['commands', config]); },
@@ -32,6 +33,9 @@ export default {
   pause() { control.calls.push(['pause']); control.playing = false; if (control.state !== 'error') control.state = control.item ? 'ready' : 'idle'; emit('playing', {playing:false}); },
   retry() { control.calls.push(['retry']); control.state = 'buffering'; emit('state', {state:'buffering'}); },
   updateMetadata(index, metadata) { control.calls.push(['metadataUpdate', index, metadata]); control.item = {...control.item, ...metadata}; emit('effectiveMetadata', control.item); },
+  sleepAfterTime(seconds) { control.calls.push(['sleepAfterTime', seconds]); control.sleepTimer = {type:'time', remainingSeconds:seconds, fadeOutSeconds:0}; },
+  getSleepTimer() { return control.sleepTimer; },
+  cancelSleepTimer() { control.calls.push(['cancelSleepTimer']); control.sleepTimer = null; },
 };
 `;
 
@@ -166,6 +170,50 @@ test("pause/resume reuses the live queue and does not initialize or fetch again"
   assert.equal(live365.controls.calls, 1);
   assert.equal(native.control.calls.filter(([name]) => name === "item").length, 1);
   assert.equal(native.control.calls.filter(([name]) => name === "setup").length, 1);
+});
+
+test("native sleep timer can be set, replaced, cancelled, and observed", async (t) => {
+  const { player, native } = await runtime(t);
+  assert.equal(player.setRadioSleepTimer(30), false);
+  assert.deepEqual(player.getRadioSleepTimerSnapshot(), {endsAt:null});
+
+  await player.playRadio(); native.audible();
+  let updates = 0;
+  const unsubscribe = player.subscribeToRadioSleepTimer(() => updates++);
+  const before = Date.now();
+  assert.equal(player.setRadioSleepTimer(30), true);
+  assert.deepEqual(native.control.calls.at(-1), ["sleepAfterTime", 1_800]);
+  assert.ok(player.getRadioSleepTimerSnapshot().endsAt >= before + 1_800_000);
+  assert.ok(player.getRadioSleepTimerSnapshot().endsAt <= Date.now() + 1_800_000);
+
+  assert.equal(player.setRadioSleepTimer(45), true);
+  assert.deepEqual(native.control.calls.at(-1), ["sleepAfterTime", 2_700]);
+  player.cancelRadioSleepTimer();
+  assert.equal(native.control.calls.at(-1)[0], "cancelSleepTimer");
+  assert.deepEqual(player.getRadioSleepTimerSnapshot(), {endsAt:null});
+  assert.equal(updates, 3);
+  unsubscribe();
+});
+
+test("native sleep timer accepts an exact future deadline", async (t) => {
+  const { player, native } = await runtime(t);
+  await player.playRadio(); native.audible();
+  const endsAt = Date.now() + 123_456;
+  assert.equal(player.setRadioSleepTimerUntil(endsAt), true);
+  const seconds = native.control.calls.at(-1)[1];
+  assert.ok(seconds === 123 || seconds === 124);
+  assert.deepEqual(player.getRadioSleepTimerSnapshot(), {endsAt});
+  assert.equal(player.setRadioSleepTimerUntil(Date.now()), false);
+  assert.deepEqual(player.getRadioSleepTimerSnapshot(), {endsAt});
+});
+
+test("native sleep timer expiry clears the timer and reconciles paused playback", async (t) => {
+  const { player, native } = await runtime(t);
+  await player.playRadio(); native.audible();
+  player.setRadioSleepTimer(15);
+  native.triggerSleepTimer();
+  assert.deepEqual(player.getRadioSleepTimerSnapshot(), {endsAt:null});
+  assert.equal(player.getRadioPlayerSnapshot().status, "paused");
 });
 
 test("replaces a legacy native item that has no transport marker", async (t) => {

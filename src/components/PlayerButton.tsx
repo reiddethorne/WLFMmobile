@@ -42,7 +42,9 @@ export function PlayerButton() {
             />
           )}
         </View>
-        <Text style={styles.buttonText}>{actionText}</Text>
+        <Text ellipsizeMode="clip" numberOfLines={1} style={styles.buttonText}>
+          {actionText}
+        </Text>
       </Pressable>
     </View>
   );
@@ -79,11 +81,10 @@ const useStyles = createThemedStyles((theme) => ({
     textAlign: "center",
   },
   buttonText: {
-    width: 52,
     color: theme.colors.accentText,
-    fontSize: theme.fontSize.body,
-    lineHeight: 24,
-    fontWeight: "700",
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "800",
     textAlign: "left",
   },
 }));

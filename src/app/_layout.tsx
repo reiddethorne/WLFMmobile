@@ -33,6 +33,17 @@ function RootNavigator() {
             title: "Preferences",
           }}
         />
+        <Stack.Screen
+          name="sleep-timer"
+          options={{
+            headerBackTitle: "Back",
+            headerShown: true,
+            headerShadowVisible: false,
+            headerStyle: { backgroundColor: theme.colors.background },
+            headerTintColor: theme.colors.text,
+            title: "Sleep Timer",
+          }}
+        />
       </Stack>
     </>
   );

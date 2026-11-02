@@ -2,7 +2,7 @@ import { AppState, Platform } from "react-native";
 
 import { STATION } from "../config/station";
 import { STATION_ARTWORK } from "../constants/assets";
-import type { RadioPlayerSnapshot, RadioTransport } from "../types/player";
+import type { RadioPlayerSnapshot, RadioSleepTimerSnapshot, RadioTransport } from "../types/player";
 import { cleanMetadataText } from "../utils/metadataText";
 import { getStationInfo } from "./live365";
 import {
@@ -38,8 +38,10 @@ let discovering = false;
 let failure: string | null = null;
 let timeout: ReturnType<typeof setTimeout> | null = null;
 let snapshot: RadioPlayerSnapshot = { status: "idle", error: null, canPause: false };
+let sleepTimerSnapshot: RadioSleepTimerSnapshot = { endsAt: null };
 let transportPreference: RadioTransport = "hls";
 const observers = new Set<() => void>();
+const sleepTimerObservers = new Set<() => void>();
 const transportObservers = new Set<() => void>();
 
 function formatNativeArtist(artist: string): string;
@@ -77,6 +79,22 @@ function publish(next: RadioPlayerSnapshot) {
   if (next.status === snapshot.status && next.error === snapshot.error && next.canPause === snapshot.canPause) return;
   snapshot = next;
   observers.forEach((observer) => observer());
+}
+
+function publishSleepTimer(endsAt: number | null) {
+  if (endsAt === sleepTimerSnapshot.endsAt) return;
+  sleepTimerSnapshot = { endsAt };
+  sleepTimerObservers.forEach((observer) => observer());
+}
+
+function reconcileSleepTimerFromNative() {
+  if (!playerModule || !setupComplete) return;
+  const timer = playerModule.default.getSleepTimer();
+  publishSleepTimer(
+    timer?.type === "time"
+      ? Date.now() + Math.max(0, timer.remainingSeconds) * 1_000
+      : null,
+  );
 }
 
 function clearConnectionTimeout() {
@@ -226,9 +244,14 @@ async function initialize() {
         if (isHlsItem(player.getActiveMediaItem())) return;
         receiveEffectiveMetadata(normalizeEffectiveMetadata(metadata));
       });
+      player.addEventListener(playerModule.Event.SleepTimerTriggered, () => {
+        publishSleepTimer(null);
+        reconcileFromNative();
+      });
       AppState.addEventListener("change", (state) => {
         if (state === "active") {
           reconcileFromNative();
+          reconcileSleepTimerFromNative();
           const item = player.getActiveMediaItem();
           if (item && !isHlsItem(item)) receiveEffectiveMetadata(item);
           refreshMetadataFallback();
@@ -253,6 +276,49 @@ export function getRadioPlayerSnapshot(): RadioPlayerSnapshot {
 export function subscribeToRadioPlayer(observer: () => void): () => void {
   observers.add(observer);
   return () => { observers.delete(observer); };
+}
+
+export function getRadioSleepTimerSnapshot(): RadioSleepTimerSnapshot {
+  return sleepTimerSnapshot;
+}
+
+export function subscribeToRadioSleepTimer(observer: () => void): () => void {
+  sleepTimerObservers.add(observer);
+  return () => { sleepTimerObservers.delete(observer); };
+}
+
+/** Starts or replaces the native wall-clock timer for an initialized station item. */
+function setRadioSleepTimerForDuration(seconds: number, endsAt: number): boolean {
+  if (!Number.isFinite(seconds) || seconds <= 0 || !Number.isFinite(endsAt) || !playerModule || !setupComplete) return false;
+  const player = playerModule.default;
+  if (!player.getActiveMediaItem()) return false;
+  try {
+    player.sleepAfterTime(seconds);
+    publishSleepTimer(endsAt);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function setRadioSleepTimer(minutes: number): boolean {
+  if (!Number.isFinite(minutes) || minutes <= 0) return false;
+  const seconds = Math.round(minutes * 60);
+  return setRadioSleepTimerForDuration(seconds, Date.now() + seconds * 1_000);
+}
+
+/** Starts or replaces the timer at an exact future wall-clock deadline. */
+export function setRadioSleepTimerUntil(endsAt: number): boolean {
+  const remainingMilliseconds = endsAt - Date.now();
+  if (!Number.isFinite(remainingMilliseconds) || remainingMilliseconds <= 0) return false;
+  return setRadioSleepTimerForDuration(Math.ceil(remainingMilliseconds / 1_000), endsAt);
+}
+
+export function cancelRadioSleepTimer(): void {
+  if (playerModule && setupComplete) {
+    try { playerModule.default.cancelSleepTimer(); } catch { /* The UI can still clear stale state. */ }
+  }
+  publishSleepTimer(null);
 }
 
 export function getRadioTransportSnapshot(): RadioTransport {
