@@ -1,4 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, SectionList, Text, TextInput, View } from "react-native";
 
@@ -6,14 +7,17 @@ import { ScheduleEventCard } from "@/components/ScheduleEventCard";
 import { ScheduleFilters } from "@/components/ScheduleFilters";
 import { ScheduleSectionHeader } from "@/components/ScheduleSectionHeader";
 import { usePreferences } from "@/context/PreferencesContext";
+import { useShowPreferences } from "@/context/ShowPreferencesContext";
 import type { ScheduleLoadError, ScheduleStatus } from "@/hooks/useSchedule";
 import { createThemedStyles } from "@/hooks/useThemedStyles";
 import {
+  buildScheduleSections,
   filterScheduleSections,
   formatShortScheduleDate,
   type ScheduleSection,
 } from "@/services/schedule";
 import type { ScheduleEvent, TimedScheduleEvent } from "@/types/schedule";
+import { favoriteProgramKey } from "@/services/showReminders";
 
 interface ScheduleListProps {
   readonly sections: readonly ScheduleSection[];
@@ -24,6 +28,8 @@ interface ScheduleListProps {
   readonly isRefreshing: boolean;
   readonly onRefresh: () => void;
   readonly onRetry: () => void;
+  readonly openedEvent: ScheduleEvent | null;
+  readonly onClearOpenedEvent: () => void;
 }
 
 function Header({
@@ -35,9 +41,12 @@ function Header({
   onToggleSearch,
   query,
   searchVisible,
+  favoritesOnly,
+  onToggleFavorites,
+  openedEvent,
 }: Pick<
   ScheduleListProps,
-  "error" | "onRetry"
+  "error" | "onRetry" | "openedEvent"
 > & {
   readonly hasFilters: boolean;
   readonly onClear: () => void;
@@ -45,8 +54,11 @@ function Header({
   readonly onToggleSearch: () => void;
   readonly query: string;
   readonly searchVisible: boolean;
+  readonly favoritesOnly: boolean;
+  readonly onToggleFavorites: () => void;
 }) {
   const { scheduleTimeMode } = usePreferences();
+  const showPreferences = useShowPreferences();
   const { styles, theme } = useStyles();
 
   return (
@@ -84,7 +96,7 @@ function Header({
       <View style={styles.scheduleMeta}>
         <View style={styles.metaItem}>
           <Ionicons color={theme.colors.muted} name="calendar-outline" size={15} />
-          <Text style={styles.metaText}>Next 14 days</Text>
+          <Text style={styles.metaText}>{openedEvent ? "Selected program" : "Next 14 days"}</Text>
         </View>
         <View style={styles.metaDivider} />
         <View style={styles.metaItem}>
@@ -94,6 +106,28 @@ function Header({
           </Text>
         </View>
       </View>
+      <View style={styles.showTools}>
+        <Pressable
+          accessibilityLabel="Show favorite programs only"
+          accessibilityRole="button"
+          accessibilityState={{ selected: favoritesOnly, disabled: !showPreferences.ready }}
+          disabled={!showPreferences.ready}
+          onPress={onToggleFavorites}
+          style={({ pressed }) => [styles.favoriteFilter, pressed && styles.buttonPressed]}
+        >
+          <Ionicons color={theme.colors.text} name={favoritesOnly ? "heart" : "heart-outline"} size={18} />
+          <Text style={styles.favoriteFilterText}>{favoritesOnly ? "Favorites only" : "Favorites"}</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push("/preferences")} style={styles.favoriteFilter}>
+          <Text style={styles.favoriteFilterText}>Manage reminders</Text>
+        </Pressable>
+      </View>
+      {showPreferences.error && (
+        <View accessibilityLiveRegion="polite" style={styles.refreshWarning}>
+          <Text style={styles.warningMessage}>{showPreferences.error}</Text>
+          <RetryButton label="Try again" onPress={showPreferences.retry} />
+        </View>
+      )}
       {searchVisible && (
         <View style={styles.searchField}>
           <Ionicons color={theme.colors.muted} name="search" size={20} />
@@ -176,9 +210,14 @@ export function ScheduleList({
   isRefreshing,
   onRefresh,
   onRetry,
+  openedEvent,
+  onClearOpenedEvent,
 }: ScheduleListProps) {
   const { styles, theme } = useStyles();
+  const { scheduleTimeMode } = usePreferences();
+  const { favorites } = useShowPreferences();
   const [query, setQuery] = useState("");
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [holdRefreshIndicator, setHoldRefreshIndicator] = useState(false);
@@ -192,10 +231,27 @@ export function ScheduleList({
     [sections],
   );
   const filteredSections = useMemo(
-    () => filterScheduleSections(sections, query, selectedDate),
-    [query, sections, selectedDate],
+    () => {
+      if (openedEvent) return buildScheduleSections([openedEvent], scheduleTimeMode);
+      const favoriteKeys = new Set(favorites.map((favorite) => favorite.key));
+      const matchingSections = favoritesOnly ? sections.map((section) => ({
+        ...section,
+        data: section.data.filter((event) => favoriteKeys.has(favoriteProgramKey(event.title))),
+      })) : sections;
+      return filterScheduleSections(matchingSections, query, selectedDate);
+    },
+    [favorites, favoritesOnly, openedEvent, query, scheduleTimeMode, sections, selectedDate],
   );
-  const hasFilters = query.trim().length > 0 || selectedDate !== null;
+  const hasFilters = query.trim().length > 0 || selectedDate !== null || favoritesOnly || openedEvent !== null;
+  const openedEventId = openedEvent?.id;
+
+  useEffect(() => {
+    if (!openedEventId) return;
+    setQuery("");
+    setSelectedDate(null);
+    setFavoritesOnly(false);
+    setSearchVisible(false);
+  }, [openedEventId]);
 
   useEffect(() => {
     if (selectedDate !== null && !sections.some((section) => section.date === selectedDate)) {
@@ -242,14 +298,17 @@ export function ScheduleList({
   const clearFilters = () => {
     setQuery("");
     setSelectedDate(null);
+    setFavoritesOnly(false);
+    onClearOpenedEvent();
   };
 
   const toggleSearch = () => {
+    onClearOpenedEvent();
     if (searchVisible) setQuery("");
     setSearchVisible((visible) => !visible);
   };
 
-  if (status === "loading") {
+  if (status === "loading" && !openedEvent) {
     return (
       <View style={styles.stateScreen}>
         <ScreenHeading />
@@ -263,7 +322,7 @@ export function ScheduleList({
     );
   }
 
-  if (status === "error" && error) {
+  if (status === "error" && error && !openedEvent) {
     return (
       <View style={styles.stateScreen}>
         <ScreenHeading />
@@ -281,6 +340,7 @@ export function ScheduleList({
 
   return (
     <SectionList<ScheduleEvent, ScheduleSection>
+      key={openedEventId ?? "full-schedule"}
       contentContainerStyle={[styles.listContent, filteredSections.length === 0 && styles.emptyListContent]}
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
@@ -292,7 +352,7 @@ export function ScheduleList({
           </Text>
           <Text style={styles.stateMessage}>
             {hasFilters
-              ? "Try a different search or date."
+              ? "Try a different search, date, or favorites filter."
               : "There are no WLFM programs listed for the next 14 days."}
           </Text>
           {hasFilters
@@ -311,10 +371,19 @@ export function ScheduleList({
             onToggleSearch={toggleSearch}
             query={query}
             searchVisible={searchVisible}
+            favoritesOnly={favoritesOnly}
+            openedEvent={openedEvent}
+            onToggleFavorites={() => {
+              onClearOpenedEvent();
+              setFavoritesOnly((value) => !value);
+            }}
           />
           <ScheduleFilters
             dates={filterDates}
-            onSelectDate={setSelectedDate}
+            onSelectDate={(date) => {
+              onClearOpenedEvent();
+              setSelectedDate(date);
+            }}
             selectedDate={selectedDate}
           />
         </View>
@@ -349,6 +418,9 @@ export function ScheduleList({
 }
 
 const useStyles = createThemedStyles((theme) => ({
+  showTools: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
+  favoriteFilter: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.colors.surface, borderRadius: theme.radius.md, borderColor: theme.colors.border, borderWidth: 1 },
+  favoriteFilterText: { color: theme.colors.text, fontSize: 14, fontWeight: "700" },
   stateScreen: {
     flex: 1,
   },

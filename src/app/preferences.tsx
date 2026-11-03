@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ShowPreferences } from "@/components/ShowPreferences";
 import {
   type ScheduleTimeMode,
   usePreferences,
@@ -112,6 +113,8 @@ export default function Preferences() {
             />
           </View>
         </View>
+
+        <ShowPreferences />
 
         {__DEV__ && (
           <View style={styles.section}>

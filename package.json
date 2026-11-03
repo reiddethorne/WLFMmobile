@@ -12,6 +12,7 @@
     "expo-dev-client": "~57.0.19",
     "expo-font": "~57.0.4",
     "expo-linking": "~57.0.11",
+    "expo-notifications": "~57.0.24",
     "expo-router": "~57.0.24",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
@@ -37,6 +38,7 @@
     "test:player": "node --test tests/player.test.mjs",
     "test:metadata": "node --test tests/metadata.test.mjs",
     "test:calendar": "node --test tests/googleCalendar.test.mjs tests/schedule.test.mjs tests/scheduleState.test.mjs",
+    "test:reminders": "node --test tests/showReminders.test.mjs",
     "check:live365": "LIVE365_LIVE_CHECK=1 node --test tests/live365.test.mjs",
     "check:calendar": "GOOGLE_CALENDAR_LIVE_CHECK=1 node --env-file-if-exists=.env.local --test tests/googleCalendar.test.mjs tests/schedule.test.mjs tests/scheduleState.test.mjs",
     "check:dependencies": "expo install --check"

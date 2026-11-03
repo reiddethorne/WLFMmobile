@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Text, View } from "react-native";
 
+import { ShowActions } from "@/components/ShowActions";
 import { usePreferences } from "@/context/PreferencesContext";
 import { createThemedStyles } from "@/hooks/useThemedStyles";
 import { formatEventTime } from "@/services/schedule";
@@ -54,6 +55,7 @@ export function ScheduleEventCard({ event, isOnAir, isUpNext }: ScheduleEventCar
           <Text style={[styles.detail, styles.location]}>{event.location}</Text>
         </View>
       )}
+      <ShowActions event={event} />
     </View>
   );
 }

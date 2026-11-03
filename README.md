@@ -81,6 +81,7 @@ npm run test:live365
 npm run test:player
 npm run test:metadata
 npm run test:calendar
+npm run test:reminders
 # Optional integration check against the real public endpoint:
 npm run check:live365
 npm run check:calendar
@@ -926,3 +927,74 @@ can change; the in-memory cache does not survive process termination; direct
 mobile REST key restrictions need release-device validation; station identifiers
 still need institutional ownership; and `@rntp/player` licensing must be confirmed
 for WLFM's production use.
+
+## Show favorites and local reminders
+
+Schedule cards offer Favorite and Remind me. Favorites are saved on this device
+and match airings by program title (ignoring case and repeated whitespace).
+Use the Favorites filter to browse their upcoming airings. Favoriting a program
+does not enable notifications automatically.
+
+Remind me enables reminders for every timed airing with that program title,
+ignoring case and repeated whitespace, five minutes before each start by default.
+The title setting persists even when no matching airings are currently listed.
+Preferences > Shows & reminders offers 1, 5, 10, 15, or 30 minutes, lists enabled
+programs and their queued airing counts, changes the lead time for an entire
+program, turns off all its reminders, and removes favorites. Changing the default
+does not change enabled programs until Use N min is selected. All-day entries,
+past airings, and deadlines that have already passed are skipped. Existing
+per-airing reminders migrate to title settings using the earliest airing's lead
+time if they disagree. Favorites work on web; reminders require iOS or Android.
+
+Every successful schedule load adds matching airings and updates notifications
+for changed or cancelled entries. The app queues the next 50 known reminders
+across all enabled titles within the loaded 14-day schedule. Launch, foreground,
+and foreground delivery replenish the queue; enabled programs also trigger a
+stale-calendar refresh at launch/foreground. Later airings require the app to
+open and refresh its schedule. No repeat pattern is guessed, and no backend or
+background calendar refresh is needed. Turning a title off cancels all its
+queued notifications and prevents future schedule loads from recreating them.
+
+Notification permission is requested on the first Remind me action. Android's
+channel is created first; denied permissions link to app settings in Preferences.
+Requests use Expo 57's explicit DATE trigger, stable identifiers to replace the
+same airing, and a foreground presentation handler. No push tokens, remote
+notifications, or notification backend are used. Tapping a notification opens
+the main Schedule tab with the corresponding entry selected, from a running or
+terminated app. Clear filters returns to the full schedule. Entries display
+their details and actions directly on the schedule, without a separate detail
+page. The payload includes a validated saved entry for offline opening; a loaded
+calendar entry with the same ID takes precedence. Notification responses are cleared
+after navigation so a later reload does not reopen an old notification.
+
+Favorites, lead time, and reminder records use AsyncStorage. The OS's pending
+notification queue is reconciled at launch, on foreground, and on foreground
+delivery. Reminder deadlines are absolute instants, independent of display
+timezone and daylight-saving changes. Calendar edits update the queue on the
+next successful refresh; offline failures keep the existing queue. Device notification settings, Focus,
+battery saving, and Android exact-alarm access can affect presentation/timing.
+
+This adds `expo-notifications` and its config plugin, plus Android's
+`SCHEDULE_EXACT_ALARM` declaration. **Rebuild the development client**; Metro
+reload alone cannot add the native module. Generated native directories are
+ignored; regenerate their configuration before a local build:
+
+```bash
+npx expo prebuild
+npm run ios
+# Or:
+npm run android
+```
+
+EAS development builds also pick up the plugin and permission. See the
+[Expo 57 Notifications documentation](https://docs.expo.dev/versions/v57.0.0/sdk/notifications/).
+
+Validation: `npm run test:reminders` covers persistence, serialized mutations,
+permission denial, one-off date requests, replacement/cancellation, OS queue
+reconciliation, storage failure recovery, DST, web fallback, and cold/warm
+notification navigation, title-wide scheduling/cancellation, legacy migration,
+queue replenishment, and changed/cancelled airings. On rebuilt iOS and Android clients, favorite a program,
+restart and verify persistence, set a reminder for an upcoming airing, verify
+foreground and locked-device delivery, tap with the app running and terminated,
+then test denied permissions, offline opening, cancellation, a changed lead time,
+large text, VoiceOver/TalkBack, and continued radio playback while navigating.
