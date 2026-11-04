@@ -118,7 +118,7 @@ function Header({
           <Ionicons color={theme.colors.text} name={favoritesOnly ? "heart" : "heart-outline"} size={18} />
           <Text style={styles.favoriteFilterText}>{favoritesOnly ? "Favorites only" : "Favorites"}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => router.push("/preferences")} style={styles.favoriteFilter}>
+        <Pressable accessibilityRole="button" onPress={() => router.push("/notifications")} style={styles.favoriteFilter}>
           <Text style={styles.favoriteFilterText}>Manage reminders</Text>
         </Pressable>
       </View>

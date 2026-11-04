@@ -34,14 +34,14 @@ export const reminderNotifications: ReminderNotifications = {
         ios: { allowAlert: true, allowSound: true, allowBadge: false },
       });
     }
-    if (!allowed(settings)) throw new Error("Notifications are disabled. Enable them in notification settings under Preferences, then try again.");
+    if (!allowed(settings)) throw new Error("Notifications are disabled. Open device notification settings under Settings > Notifications, then try again.");
   },
   async schedule(reminder) {
     await Notifications.scheduleNotificationAsync({
       identifier: reminder.notificationId,
       content: {
         title: reminder.event.title,
-        body: `Starts in ${reminder.minutesBefore} ${reminder.minutesBefore === 1 ? "minute" : "minutes"} on WLFM. Tap to view the program.`,
+        body: `Starts in ${reminder.minutesBefore} ${reminder.minutesBefore === 1 ? "minute" : "minutes"} on WLFM. Tap to listen.`,
         sound: "default",
         data: { type: "show-reminder", reminder },
       },

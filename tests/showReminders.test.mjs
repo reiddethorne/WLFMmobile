@@ -389,6 +389,7 @@ test("native scheduling uses a dated one-off trigger with an offline entry; unre
   const item = reminder();
   await reminderNotifications.schedule(item);
   const request = native.calls[0][1];
+  assert.equal(request.content.body, "Starts in 5 minutes on WLFM. Tap to open the player.");
   assert.equal(request.trigger.type, "date");
   assert.equal(request.trigger.date.getTime(), reminderTimestamp(item));
   assert.equal(request.trigger.repeats, undefined);
@@ -416,7 +417,7 @@ test("foreground delivery refreshes reminders without reacting to unrelated noti
   assert.equal(native.received.size, 0);
 });
 
-test("cold and warm notification taps open the exact saved airing in the main schedule once and clean up", async () => {
+test("cold and warm notification taps open the radio player once and clean up", async () => {
   const { navigation, pushes } = await importTemp("router.mjs");
   const { effects } = await importTemp("react.mjs");
   const response = (item, date) => ({ actionIdentifier: "default", notification: {
@@ -431,16 +432,14 @@ test("cold and warm notification taps open the exact saved airing in the main sc
   useReminderNavigation();
   const cleanup = effects.pop()();
   assert.equal(pushes.length, 1);
-  assert.equal(pushes[0].pathname, "/(tabs)/schedule");
-  assert.deepEqual(JSON.parse(pushes[0].params.event), event());
+  assert.deepEqual(pushes[0], { pathname: "/(tabs)" });
   assert.equal(native.initial, null);
   const listener = [...native.responses][0];
   listener(first);
   assert.equal(pushes.length, 1);
   listener(response(reminder(event("second")), 2));
   assert.equal(pushes.length, 2);
-  assert.equal(pushes[1].pathname, "/(tabs)/schedule");
-  assert.equal(JSON.parse(pushes[1].params.event).id, "second");
+  assert.deepEqual(pushes[1], { pathname: "/(tabs)" });
   listener({ ...first, actionIdentifier: "dismiss" });
   listener(response({ ...reminder(), event: { id: "malformed" } }, 3));
   assert.equal(pushes.length, 2);

@@ -16,11 +16,11 @@ export function ShowActions({ event }: { readonly event: ScheduleEvent }) {
   const reminder = programReminders.find((item) => item.key === favoriteProgramKey(event.title));
   const canRemind = !event.isAllDay && Date.parse(event.start) > Date.now();
 
-  const run = async (action: () => Promise<void>, success: string | null = null) => {
+  const run = async (action: () => Promise<void>) => {
     if (busy) return;
     setBusy(true);
     setMessage(null);
-    try { await action(); setMessage(success); }
+    try { await action(); }
     catch (error) { setMessage(error instanceof Error ? error.message : "The change could not be saved. Please try again."); }
     finally { setBusy(false); }
   };
@@ -48,7 +48,6 @@ export function ShowActions({ event }: { readonly event: ScheduleEvent }) {
             disabled={!ready || busy}
             onPress={() => { void run(
               () => reminder ? store.cancelReminder(event.title) : store.setReminder(event, minutesBefore),
-              reminder ? "All reminders for this program are off." : `Reminders enabled ${minutesBefore} ${minutesBefore === 1 ? "minute" : "minutes"} before every airing with this title. New airings are added when the schedule refreshes.`,
             ); }}
             style={({ pressed }) => [styles.button, pressed && styles.pressed, (!ready || busy) && styles.disabled]}
           >

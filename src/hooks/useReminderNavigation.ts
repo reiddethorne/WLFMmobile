@@ -18,7 +18,7 @@ export function useReminderNavigation() {
       const reminder = parseShowReminder(notification.request.content.data.reminder);
       if (!reminder || reminder.notificationId !== notification.request.identifier) return;
       handled.current = key;
-      router.navigate({ pathname: "/(tabs)/schedule", params: { event: JSON.stringify(reminder.event) } });
+      router.navigate({ pathname: "/(tabs)" });
       Notifications.clearLastNotificationResponse();
     };
     const subscription = Notifications.addNotificationResponseReceivedListener(open);

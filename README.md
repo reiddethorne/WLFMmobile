@@ -938,9 +938,10 @@ does not enable notifications automatically.
 Remind me enables reminders for every timed airing with that program title,
 ignoring case and repeated whitespace, five minutes before each start by default.
 The title setting persists even when no matching airings are currently listed.
-Preferences > Shows & reminders offers 1, 5, 10, 15, or 30 minutes, lists enabled
+Settings > Notifications offers 1, 5, 10, 15, or 30 minutes, lists enabled
 programs and their queued airing counts, changes the lead time for an entire
-program, turns off all its reminders, and removes favorites. Changing the default
+program, and turns off all its reminders. Favorite programs remain under
+Settings > Preferences. Changing the default
 does not change enabled programs until Use N min is selected. All-day entries,
 past airings, and deadlines that have already passed are skipped. Existing
 per-airing reminders migrate to title settings using the earliest airing's lead
@@ -956,15 +957,14 @@ background calendar refresh is needed. Turning a title off cancels all its
 queued notifications and prevents future schedule loads from recreating them.
 
 Notification permission is requested on the first Remind me action. Android's
-channel is created first; denied permissions link to app settings in Preferences.
+channel is created first; denied permissions link to device settings under
+Settings > Notifications.
 Requests use Expo 57's explicit DATE trigger, stable identifiers to replace the
 same airing, and a foreground presentation handler. No push tokens, remote
 notifications, or notification backend are used. Tapping a notification opens
-the main Schedule tab with the corresponding entry selected, from a running or
-terminated app. Clear filters returns to the full schedule. Entries display
-their details and actions directly on the schedule, without a separate detail
-page. The payload includes a validated saved entry for offline opening; a loaded
-calendar entry with the same ID takes precedence. Notification responses are cleared
+the Radio tab's player, from a running or terminated app. The notification says
+"Tap to open the player." Schedule entries display their details and actions
+directly on the schedule. Notification responses are cleared
 after navigation so a later reload does not reopen an old notification.
 
 Favorites, lead time, and reminder records use AsyncStorage. The OS's pending

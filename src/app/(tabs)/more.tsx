@@ -36,8 +36,9 @@ const MORE_SECTIONS = [
   {
     title: "Settings",
     options: [
-      { label: "Sleep timer", icon: "moon-outline" },
-      { label: "Preferences", icon: "options-outline" },
+      { label: "Sleep timer", icon: "moon-outline", route: "/sleep-timer", hint: "Opens sleep timer settings" },
+      { label: "Preferences", icon: "options-outline", route: "/preferences", hint: "Opens app preferences" },
+      { label: "Notifications", icon: "notifications-outline", route: "/notifications", hint: "Opens notification and show reminder settings" },
     ],
   },
 ] as const;
@@ -86,13 +87,11 @@ export default function More() {
               {section.options.map((option, index) => {
                 const isShareStation = "shareUrl" in option;
                 const isExternalLink = "url" in option;
-                const isPreferences = option.label === "Preferences";
+                const isSettingsLink = "route" in option;
                 const isSleepTimer = option.label === "Sleep timer";
-                const isInteractive = isShareStation || isExternalLink || isPreferences || isSleepTimer;
-                const onPress = isPreferences
-                  ? () => router.push("/preferences")
-                  : isSleepTimer
-                    ? () => router.push("/sleep-timer")
+                const isInteractive = isShareStation || isExternalLink || isSettingsLink;
+                const onPress = isSettingsLink
+                  ? () => router.push(option.route)
                   : isShareStation
                   ? () => void shareStation()
                   : isExternalLink
@@ -103,10 +102,8 @@ export default function More() {
                   <Pressable
                     accessible
                     accessibilityHint={
-                      isPreferences
-                        ? "Opens app preferences"
-                        : isSleepTimer
-                          ? "Opens sleep timer settings"
+                      isSettingsLink
+                        ? option.hint
                         : isShareStation
                         ? "Opens the system share sheet"
                         : isExternalLink
