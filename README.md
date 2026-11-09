@@ -1,11 +1,46 @@
-# WLFM Student Radio — Stage 10
+# WLFM Student Radio
+
+The Blog tab reads published station stories directly from WordPress using Basic
+Auth and Expo SecureStore. The site administrator approved the dedicated blog
+account for this use, confirming read access without writing privileges or
+access to compromising information. On November 5, 2026, the initial live posts
+check returned HTTP 200 with 16 published, unprotected posts before the date
+cutoff was added; the user also confirmed Blog is working.
+No separate server is required. See [WordPress setup](docs/wordpress.md) for
+configuration, verification, and the distinction between encrypted device
+storage and extractable bundled values. The example environment enables Blog
+but leaves credentials blank; no WordPress requests occur until both credentials
+are configured in a native build.
+
+Blog shows only stories published from January 1, 2026 onward in Central time.
+Cards show the author, publication date, excerpt, and a cover image when
+available. Stories open in a native article reader with full text, headings,
+lists, links, inline images, and captions. Publication dates use Central time.
+Featured media is preferred for card covers, with the first inline image as a
+fallback. The reader uses JavaScript-only HTML parsing, so this enhancement does
+not require a native rebuild in a client that already includes SecureStore.
 
 Expo Router foundation for an iOS and Android student radio app. The default
 Radio tab contains the Play/Pause/Retry control and a development-only Live365
 connection check. The Schedule tab displays the next 14 days from a public
 Google Calendar through separately tested read-only networking and schedule layers.
 Live365 discovery, native live playback, background audio, native Play/Pause
-controls, synchronized live metadata, and the final player screen are implemented.
+controls, synchronized live metadata, and the player screen are implemented.
+Playback defaults to HLS when available, with the direct stream as a compatibility
+fallback; HLS song metadata comes from the Live365 API. Settings > Preferences
+lets listeners choose station time (the default) or their device's local time
+for Schedule. This does not change Blog's Central-time dates or publication cutoff.
+
+The Stage 1–10 sections below preserve implementation history and checks from
+those checkpoints. Earlier placeholder behavior, stream choices, machine setup,
+and test counts describe those stages, rather than the current app. The opening
+setup instructions, WordPress guide, and favorites/reminders section describe
+current behavior.
+
+Documentation review on November 5, 2026: TypeScript passed. The full local test
+run reported 151 tests: 149 passed and two optional live checks skipped, with no
+failures. The reminder test now expects the app's current “Tap to listen” wording.
+Native device acceptance remains separate from these automated checks.
 
 ## Verified versions
 
@@ -43,7 +78,9 @@ src/
       _layout.tsx
       index.tsx        # Radio tab and default / route
       schedule.tsx     # Virtualized 14-day schedule
-  components/          # Player controls and development diagnostics
+      blog.tsx         # WordPress story cards with authors, dates, and images
+    article/[id].tsx   # Native full-article reader and direct article links
+  components/          # Radio, schedule, settings, article UI, and diagnostics
   config/              # Central station and calendar configuration
   constants/theme.ts   # Shared colors, spacing, radii, font sizes
   hooks/               # Cancellable UI state and shared radio player state
@@ -53,8 +90,14 @@ src/
   services/metadata.ts # Stream-first metadata and scoped Live365 fallback polling
   services/player.ts   # Single native player and cancellable playback commands
   services/player.web.ts # Native-only message; no web audio engine dependency
+  services/wordpress.ts # Authenticated public-post requests and safe diagnostics
+  services/blogPosts.ts # Public author/date/image/content normalization
+  services/articleContent.ts # Safe native article blocks from published HTML
+  services/wordpressCredentials.ts # Approved account bootstrap and SecureStore
+  services/wordpressCredentials.web.ts # No authenticated blog access on web
   types/               # Application-owned station, player, metadata, schedule types
-tests/                 # Networking, parsing, player, and metadata behavior checks
+tests/                 # Networking, parsing, player, schedule, reminders, and blog checks
+docs/wordpress.md      # Approved WordPress account setup and verification
 assets/                # Existing starter images; replace branding later
 ```
 
@@ -82,6 +125,7 @@ npm run test:player
 npm run test:metadata
 npm run test:calendar
 npm run test:reminders
+npm run test:wordpress
 # Optional integration check against the real public endpoint:
 npm run check:live365
 npm run check:calendar
@@ -123,8 +167,58 @@ npx eas-cli@latest build --platform ios --profile development
 
 Install the development build, run `npm start`, and open the app. EAS iOS uses
 Xcode 26.6, the documented SDK 57 image, pinned in `eas.json`. Using Xcode 27
-requires additional scene-lifecycle configuration from the Expo release notes;
-that toolchain is not configured here. `npm run web` previews the UI only.
+requires scene-lifecycle support; `app.json` already enables it through
+`expo-build-properties` (`enableSceneSupport: true`). EAS remains pinned to
+Xcode 26.6; that setting alone does not verify an Xcode 27 build. `npm run web` previews the UI only.
+
+## Standalone copy on an iPhone with a free Apple account
+
+A local Release build bundles JavaScript into the installed app and runs without
+Metro or your Mac. Free Personal Team provisioning expires after seven days;
+rebuild and reinstall to renew it. EAS ad hoc iPhone preview distribution requires
+Apple Developer Program membership.
+
+The local-notifications config plugin removes the APNs push entitlement added
+by `expo-notifications`, allowing Personal Team signing. Keep
+`./plugins/withLocalNotificationsOnly` before `expo-notifications` in the plugin
+list so its entitlement mod runs last. Local show reminders remain enabled;
+remote push notifications are not configured.
+
+Connect and unlock the iPhone, trust the Mac, and enable Developer Mode in the
+phone's Privacy & Security settings. Regenerate native configuration if it has
+changed:
+
+```bash
+npx expo prebuild --platform ios
+open ios/WLFM.xcworkspace
+```
+
+In Xcode, add your Apple account under Settings > Accounts. Select the WLFM
+target's Signing & Capabilities, enable automatic signing, and select your
+Personal Team. Use an available personal bundle identifier if Xcode reports the
+current identifier is unavailable. Generated native signing settings are local
+and may need to be restored after regenerating native projects.
+
+For the first install, let Xcode create the provisioning profile: select your
+iPhone as the run destination, open Product > Scheme > Edit Scheme, set Run's
+Build Configuration to Release, and choose Product > Run. Resolve any account
+or provisioning prompts in Xcode. If the CLI reports “No profiles” and suggests
+`-allowProvisioningUpdates`, use this Xcode step before retrying the CLI.
+
+Then run:
+
+```bash
+npm run ios:preview
+```
+
+Select the physical iPhone. After installation, close the app, disconnect the
+cable, and reopen WLFM to check that it launches without Metro. Streaming,
+calendar requests, and blog requests still need an internet connection. Local
+Release builds use the configured local environment values at build time;
+changing them requires rebuilding this copy.
+
+References: [Expo local builds](https://docs.expo.dev/guides/local-app-development/)
+and [Apple Personal Team limits](https://developer.apple.com/help/account/basics/about-your-developer-account/).
 
 ## Stage 1 acceptance check
 
@@ -205,9 +299,9 @@ in a temporary directory without installing pods; Track Player was detected by
 autolinking on both platforms, and generated iOS configuration contains the audio
 background mode. Generated native projects were not added to this repository.
 
-Native builds/device checks remain pending: this machine currently selects
-Apple Command Line Tools instead of full Xcode, and has JDK 23 rather than the
-recommended JDK 17. Use the EAS development profiles or configure those local
+At the foundation checkpoint, native builds/device checks were pending: the
+machine selected Apple Command Line Tools instead of full Xcode and had JDK 23
+rather than the recommended JDK 17. This is a historical toolchain snapshot. Use the EAS development profiles or configure those local
 toolchains before completing the native acceptance check.
 
 
@@ -244,8 +338,8 @@ installing the optional Shaka web audio engine.
 Passed: strict TypeScript, 13 player tests using a native mock, existing Live365
 tests, native generation/autolinking on both platforms, and iOS/Android/web
 bundle exports. These cannot prove native compilation or audible playback.
-Full Xcode is installed at version 26.3, below SDK 57's documented minimum 26.4;
-CocoaPods is not on PATH. Use EAS or configure the local toolchain. Native UI
+At the Stage 3 checkpoint, full Xcode was version 26.3, below SDK 57's
+documented minimum 26.4, and CocoaPods was not on PATH. Use EAS or configure the local toolchain. Native UI
 automation access is unavailable.
 
 Exact next command for an existing development build:
@@ -575,7 +669,7 @@ are difficult or impossible to change after release. Confirm that WLFM's use of
 public Live365 listener API, and inspect the splash screen in a release build.
 Do not put broadcaster credentials or private keys in the mobile bundle.
 
-`npm audit --omit=dev` currently reports moderate advisories in Expo SDK 57's
+At the Stage 6 checkpoint, `npm audit --omit=dev` reported moderate advisories in Expo SDK 57's
 transitive `query-string/decode-uri-component` and build-time
 `@expo/config-plugins/xcode/uuid` chains. npm's suggested forced fix would
 downgrade Router and SplashScreen across SDK boundaries, so it was not applied.
@@ -841,7 +935,7 @@ npm ci
 npm start
 ```
 
-Run the complete automated review:
+Run the automated review:
 
 ```bash
 npm run typecheck
@@ -849,6 +943,8 @@ npm run test:calendar
 npm run test:player
 npm run test:metadata
 npm run test:live365
+npm run test:reminders
+npm run test:wordpress
 npm run check:calendar
 npm run check:dependencies
 npx expo-doctor@latest
@@ -884,8 +980,9 @@ ownership identifiers.
 
 ### Timezone, refresh, and troubleshooting
 
-All displayed schedule dates and times use `America/Chicago`, including CST/CDT
-transitions, regardless of the device timezone. Google all-day end dates remain
+Schedule defaults to `America/Chicago`, including CST/CDT transitions.
+Settings > Preferences can switch timed events and day grouping to device-local
+time; reminder deadlines remain the same absolute instants. Google all-day end dates remain
 exclusive date-only values. ON AIR uses an inclusive start and exclusive end;
 all-day entries are never inferred to be broadcasts. A focused minute clock only
 updates ON AIR/UP NEXT state and never calls Google.
@@ -903,7 +1000,7 @@ updates ON AIR/UP NEXT state and never calls Google.
   traffic, and prefer a cached proxy if installed-client traffic grows. The app
   does not automatically retry and amplify a quota failure.
 - **Incorrect date or time:** confirm source events and the calendar use the
-  intended Central times. The app deliberately ignores the device timezone.
+  intended times, then check the station/local display choice in Preferences.
 - **Playback stops during navigation:** confirm this is a development/release
   build containing Track Player, iOS `UIBackgroundModes: audio`, and Android's
   merged media playback service/permissions. Rebuild the native client after a
@@ -913,7 +1010,7 @@ updates ON AIR/UP NEXT state and never calls Google.
 
 Automated tests and bundle exports cannot prove audio, operating-system media
 controls, release signing, or assistive-technology behavior. On both Android and
-iOS, perform the staged prompt's 20-step final acceptance pass: play WLFM, switch
+iOS, perform a final acceptance pass: play WLFM, switch
 to Schedule, refresh, lock the device from Schedule, pause/resume from native
 controls, return to Radio and compare state, change device timezone, test cached
 refresh failure and clean-launch offline behavior, reconnect and Retry, exercise
@@ -963,7 +1060,7 @@ Requests use Expo 57's explicit DATE trigger, stable identifiers to replace the
 same airing, and a foreground presentation handler. No push tokens, remote
 notifications, or notification backend are used. Tapping a notification opens
 the Radio tab's player, from a running or terminated app. The notification says
-"Tap to open the player." Schedule entries display their details and actions
+"Tap to listen." Schedule entries display their details and actions
 directly on the schedule. Notification responses are cleared
 after navigation so a later reload does not reopen an old notification.
 

@@ -28,6 +28,17 @@ function RootNavigator() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.background } }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
+          name="article/[id]"
+          options={{
+            headerBackTitle: "Blog",
+            headerShown: true,
+            headerShadowVisible: false,
+            headerStyle: { backgroundColor: theme.colors.background },
+            headerTintColor: theme.colors.text,
+            title: "WLFM Blog",
+          }}
+        />
+        <Stack.Screen
           name="notifications"
           options={{
             headerBackTitle: "Back",

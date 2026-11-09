@@ -389,7 +389,7 @@ test("native scheduling uses a dated one-off trigger with an offline entry; unre
   const item = reminder();
   await reminderNotifications.schedule(item);
   const request = native.calls[0][1];
-  assert.equal(request.content.body, "Starts in 5 minutes on WLFM. Tap to open the player.");
+  assert.equal(request.content.body, "Starts in 5 minutes on WLFM. Tap to listen.");
   assert.equal(request.trigger.type, "date");
   assert.equal(request.trigger.date.getTime(), reminderTimestamp(item));
   assert.equal(request.trigger.repeats, undefined);
