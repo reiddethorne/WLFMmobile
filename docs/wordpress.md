@@ -2,21 +2,22 @@
 
 The native app connects directly to
 `https://solwlfm.lawrence.edu/wp-json/wp/v2/posts`. No separate server or hosting
-service is required. **The connection is working and the account's use is
-approved.** On November 5, 2026, the initial live posts check, before the date
+service is required. **The connection is working, and the site owner accepted
+the documented credential-extraction risk for this dedicated account.** On
+November 5, 2026, the initial live posts check, before the date
 cutoff was added, returned HTTP 200 and 16 published, unprotected posts matching
 the app's expected response format.
 The user also confirmed Blog is working in the app. No credentials or post
 contents were included in the check's output.
 
-## Approved account
+## Accepted risk and account scope
 
 The site administrator confirmed that the dedicated account only reads posts
 on the solwlfm blog, has no writing privileges, and cannot access compromising
-information. The administrator approved using that account in the app after
-the shared credential's potential extraction and use outside the app were
-discussed. This approval applies to the dedicated account, not an Editor or
-administrator account.
+information. After the shared credential's potential extraction and use outside
+the app were discussed, the site owner accepted that deployment tradeoff for
+this specific account. That decision does not apply to an Editor or
+administrator account and does not mean the bundled credential is secret.
 
 These access assurances come from the site owner. The successful live check
 verified feed access and response parsing; it did not audit the account's full
@@ -70,9 +71,9 @@ plaintext-storage fallback.
 **The bundled bootstrap values remain extractable.** Expo inlines
 `EXPO_PUBLIC_*` variables into the compiled app as readable values. Copying them
 to SecureStore does not remove or encrypt the copy in the bundle. EAS variable
-visibility settings do not change that. The site administrator approved this
-tradeoff for the specific dedicated account described above. That approval does
-not make the bundled copy encrypted or secret. Keeping a shared credential
+visibility settings do not change that. The site owner accepted this tradeoff
+for the specific dedicated account described above. That decision does not make
+the bundled copy encrypted or secret. Keeping a shared credential
 secret from listeners would require a different architecture.
 
 SecureStore encrypts the persisted device copy using Android Keystore-backed
