@@ -20,8 +20,27 @@ interface PlaybackStatusBarProps {
   readonly status: RadioPlayerStatus;
 }
 
+interface PlaybackStatusBarContentProps extends PlaybackStatusBarProps {
+  readonly placement: "regular" | "inline";
+}
+
 export function PlaybackStatusBar({ error, status }: PlaybackStatusBarProps) {
   const placement = NativeTabs.BottomAccessory.usePlacement();
+
+  return (
+    <PlaybackStatusBarContent
+      error={error}
+      placement={placement}
+      status={status}
+    />
+  );
+}
+
+export function PlaybackStatusBarContent({
+  error,
+  placement,
+  status,
+}: PlaybackStatusBarContentProps) {
   const { styles, theme } = useStyles();
   const message = error ?? STATUS[status];
   const loading = status === "connecting" || status === "buffering";

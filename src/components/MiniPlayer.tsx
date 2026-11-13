@@ -17,16 +17,28 @@ interface MiniPlayerProps {
   readonly title: string;
 }
 
+interface MiniPlayerContentProps extends MiniPlayerProps {
+  readonly placement: "regular" | "inline";
+}
+
 export function MiniPlayer({
+  ...props
+}: MiniPlayerProps) {
+  const placement = NativeTabs.BottomAccessory.usePlacement();
+
+  return <MiniPlayerContent {...props} placement={placement} />;
+}
+
+export function MiniPlayerContent({
   artworkUrl,
   artist,
   canPause,
   errorKind,
   onTogglePlayback,
+  placement,
   status,
   title,
-}: MiniPlayerProps) {
-  const placement = NativeTabs.BottomAccessory.usePlacement();
+}: MiniPlayerContentProps) {
   const { styles, theme } = useStyles();
   const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
   const remoteArtwork = artworkUrl !== null && artworkUrl !== failedArtwork;
