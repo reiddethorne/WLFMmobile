@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, SectionList, Text, TextInput, View } from "react-native";
 
 import { ScheduleEventCard } from "@/components/ScheduleEventCard";
@@ -26,7 +26,7 @@ interface ScheduleListProps {
   readonly status: ScheduleStatus;
   readonly error: ScheduleLoadError | null;
   readonly isRefreshing: boolean;
-  readonly onRefresh: () => void;
+  readonly onRefresh: () => Promise<void>;
   readonly onRetry: () => void;
   readonly openedEvent: ScheduleEvent | null;
   readonly onClearOpenedEvent: () => void;
@@ -220,9 +220,7 @@ export function ScheduleList({
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [holdRefreshIndicator, setHoldRefreshIndicator] = useState(false);
-  const isDragging = useRef(false);
-  const releaseFrame = useRef<number | null>(null);
+  const [isUserRefreshing, setIsUserRefreshing] = useState(false);
   const filterDates = useMemo(
     () => sections.map((section) => ({
       value: section.date,
@@ -259,41 +257,10 @@ export function ScheduleList({
     }
   }, [sections, selectedDate]);
 
-  const cancelIndicatorRelease = useCallback(() => {
-    if (releaseFrame.current === null) return;
-    cancelAnimationFrame(releaseFrame.current);
-    releaseFrame.current = null;
-  }, []);
-
-  const releaseIndicator = useCallback(() => {
-    if (releaseFrame.current !== null) return;
-    releaseFrame.current = requestAnimationFrame(() => {
-      releaseFrame.current = null;
-      setHoldRefreshIndicator(false);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!isRefreshing && !isDragging.current) releaseIndicator();
-  }, [isRefreshing, releaseIndicator]);
-
-  useEffect(() => cancelIndicatorRelease, [cancelIndicatorRelease]);
-
   const handleRefresh = useCallback(() => {
-    cancelIndicatorRelease();
-    setHoldRefreshIndicator(true);
-    onRefresh();
-  }, [cancelIndicatorRelease, onRefresh]);
-
-  const handleScrollBeginDrag = useCallback(() => {
-    cancelIndicatorRelease();
-    isDragging.current = true;
-  }, [cancelIndicatorRelease]);
-
-  const handleScrollEndDrag = useCallback(() => {
-    isDragging.current = false;
-    if (!isRefreshing) releaseIndicator();
-  }, [isRefreshing, releaseIndicator]);
+    setIsUserRefreshing(true);
+    void onRefresh().finally(() => setIsUserRefreshing(false));
+  }, [onRefresh]);
 
   const clearFilters = () => {
     setQuery("");
@@ -393,12 +360,10 @@ export function ScheduleList({
           accessibilityLabel="Refresh schedule"
           colors={[theme.colors.text]}
           onRefresh={handleRefresh}
-          refreshing={isRefreshing || holdRefreshIndicator}
+          refreshing={isRefreshing || isUserRefreshing}
           tintColor={theme.colors.text}
         />
       )}
-      onScrollBeginDrag={handleScrollBeginDrag}
-      onScrollEndDrag={handleScrollEndDrag}
       renderItem={({ item }) => (
         <View style={styles.contentWidth}>
           <ScheduleEventCard

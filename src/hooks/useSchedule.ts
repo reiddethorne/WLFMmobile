@@ -62,7 +62,7 @@ export function useSchedule({ clock = currentClock }: UseScheduleOptions = {}) {
   );
   const currentEvent = useMemo(() => getCurrentEvent(state.events, now), [state.events, now]);
   const nextEvent = useMemo(() => getNextEvent(state.events, now), [state.events, now]);
-  const refresh = useCallback(() => { void scheduleStore.refresh(); }, []);
+  const refresh = useCallback(() => scheduleStore.refresh(), []);
   const retry = useCallback(() => { void scheduleStore.retry(); }, []);
 
   return {
