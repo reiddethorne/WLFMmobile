@@ -81,7 +81,7 @@ npm run typecheck
 node --test tests/*.test.mjs
 ```
 
-The current suite contains 151 checks. The latest local run passed 149 and skipped the two optional live-endpoint checks, with no failures. Live checks can be run separately with `npm run check:live365` and `npm run check:calendar` after configuration.
+The current suite contains 154 checks. The latest local run passed 152 and skipped the two optional live-endpoint checks, with no failures. Live checks can be run separately with `npm run check:live365` and `npm run check:calendar` after configuration.
 
 ## Current limitations
 

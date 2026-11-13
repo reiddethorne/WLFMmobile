@@ -5,12 +5,13 @@ import { ActivityIndicator, Image, Pressable, Text, View } from "react-native";
 
 import { STATION_ARTWORK } from "@/constants/assets";
 import { createThemedStyles } from "@/hooks/useThemedStyles";
-import type { RadioPlayerStatus } from "@/types/player";
+import type { RadioPlayerErrorKind, RadioPlayerStatus } from "@/types/player";
 
 interface MiniPlayerProps {
   readonly artworkUrl: string | null;
   readonly artist: string;
   readonly canPause: boolean;
+  readonly errorKind: RadioPlayerErrorKind | null;
   readonly onTogglePlayback: () => void;
   readonly status: RadioPlayerStatus;
   readonly title: string;
@@ -20,6 +21,7 @@ export function MiniPlayer({
   artworkUrl,
   artist,
   canPause,
+  errorKind,
   onTogglePlayback,
   status,
   title,
@@ -90,7 +92,11 @@ export function MiniPlayer({
       >
         <Text numberOfLines={1} style={styles.title}>{title}</Text>
         <Text numberOfLines={1} style={[styles.artist, status === "error" && styles.error]}>
-          {status === "error" ? "Station unavailable" : artist}
+          {status === "error"
+            ? errorKind === "station-unavailable"
+              ? "Station currently unavailable"
+              : "Playback interrupted — Play to reconnect"
+            : artist}
         </Text>
       </View>
       {control}

@@ -2,7 +2,12 @@ import { AppState, Platform } from "react-native";
 
 import { STATION } from "../config/station";
 import { STATION_ARTWORK } from "../constants/assets";
-import type { RadioPlayerSnapshot, RadioSleepTimerSnapshot, RadioTransport } from "../types/player";
+import type {
+  RadioPlayerErrorKind,
+  RadioPlayerSnapshot,
+  RadioSleepTimerSnapshot,
+  RadioTransport,
+} from "../types/player";
 import { cleanMetadataText } from "../utils/metadataText";
 import { getStationInfo } from "./live365";
 import {
@@ -26,18 +31,27 @@ const STREAM_USER_AGENT = "WLFM/1.0 (Android)";
 const NATIVE_STATION_SUFFIX = ` - ${STATION.name}`;
 const IS_NATIVE_PLATFORM = Platform.OS === "ios" || Platform.OS === "android";
 
+class PlayerConfigurationError extends Error {}
+
 let playerModule: PlayerModule | null = null;
 let initialization: Promise<void> | null = null;
 let setupComplete = false;
 let listenersComplete = false;
+let playbackSessionComplete = false;
 let lastPlayingEvent = false;
 let request: AbortController | null = null;
 let generation = 0;
 let wantsPlayback = false;
 let discovering = false;
 let failure: string | null = null;
+let failureKind: RadioPlayerErrorKind | null = null;
 let timeout: ReturnType<typeof setTimeout> | null = null;
-let snapshot: RadioPlayerSnapshot = { status: "idle", error: null, canPause: false };
+let snapshot: RadioPlayerSnapshot = {
+  status: "idle",
+  error: null,
+  errorKind: null,
+  canPause: false,
+};
 let sleepTimerSnapshot: RadioSleepTimerSnapshot = { endsAt: null };
 let transportPreference: RadioTransport = "hls";
 const observers = new Set<() => void>();
@@ -76,7 +90,8 @@ function itemMatchesTransportPreference(item: { readonly extras?: Record<string,
 }
 
 function publish(next: RadioPlayerSnapshot) {
-  if (next.status === snapshot.status && next.error === snapshot.error && next.canPause === snapshot.canPause) return;
+  if (next.status === snapshot.status && next.error === snapshot.error &&
+    next.errorKind === snapshot.errorKind && next.canPause === snapshot.canPause) return;
   snapshot = next;
   observers.forEach((observer) => observer());
 }
@@ -104,11 +119,11 @@ function clearConnectionTimeout() {
 
 function updateFromNative() {
   if (failure) {
-    publish({ status: "error", error: failure, canPause: false });
+    publish({ status: "error", error: failure, errorKind: failureKind, canPause: false });
     return;
   }
   if (discovering) {
-    publish({ status: "connecting", error: null, canPause: wantsPlayback });
+    publish({ status: "connecting", error: null, errorKind: null, canPause: wantsPlayback });
     return;
   }
   if (!playerModule || !setupComplete) return;
@@ -121,17 +136,31 @@ function updateFromNative() {
   setMetadataPlaybackActive(wantsPlayback || playing);
   if (playing) clearConnectionTimeout();
   if (state === playerModule.PlaybackState.Error) {
-    fail("The radio stream could not be played. Check your connection and retry.");
+    // A queued live stream can expire while intentionally paused. Keep that
+    // stale native state hidden until the listener actually asks to play;
+    // Play will refresh/retry the item through the normal recovery path.
+    if (!wantsPlayback) {
+      clearConnectionTimeout();
+      setMetadataPlaybackActive(false);
+      publish({
+        status: player.getActiveMediaItem() ? "paused" : "idle",
+        error: null,
+        errorKind: null,
+        canPause: false,
+      });
+      return;
+    }
+    fail("Couldn't reconnect to WLFM. Check your connection and try again.");
     return;
   }
   if (state === playerModule.PlaybackState.Ended && wantsPlayback) {
-    fail("The live stream ended. Retry to reconnect to WLFM.");
+    fail("The live stream ended. Play to reconnect to WLFM.");
     return;
   }
   const status = playing ? "playing" :
     wantsPlayback ? state === playerModule.PlaybackState.Buffering ? "buffering" : "connecting" :
       player.getActiveMediaItem() ? "paused" : "idle";
-  publish({ status, error: null, canPause: wantsPlayback || playing });
+  publish({ status, error: null, errorKind: null, canPause: wantsPlayback || playing });
 }
 
 function reconcileFromNative() {
@@ -145,20 +174,83 @@ function reconcileFromNative() {
   updateFromNative();
 }
 
-function fail(message: string) {
+function fail(message: string, kind: RadioPlayerErrorKind = "connection") {
   generation += 1;
   request?.abort();
   request = null;
   discovering = false;
   wantsPlayback = false;
   failure = message;
+  failureKind = kind;
   clearConnectionTimeout();
   setMetadataPlaybackActive(false);
   // Preserve the queue for retry; suppress late starts after a failed connection.
   if (playerModule && setupComplete) {
     try { playerModule.default.pause(); } catch { /* Keep the original actionable error. */ }
   }
-  publish({ status: "error", error: message, canPause: false });
+  publish({ status: "error", error: message, errorKind: kind, canPause: false });
+}
+
+function beginNativeResume() {
+  const attempt = ++generation;
+  wantsPlayback = true;
+  failure = null;
+  failureKind = null;
+  publish({ status: "connecting", error: null, errorKind: null, canPause: true });
+  clearConnectionTimeout();
+  timeout = setTimeout(() => {
+    if (attempt === generation) {
+      fail("The stream took too long to reconnect. Check your connection and try again.");
+    }
+  }, CONNECTION_TIMEOUT_MS);
+}
+
+function configurePlaybackSession() {
+  if (!playerModule || playbackSessionComplete) return;
+  const module = playerModule;
+  module.default.registerPlaybackSession(() => {
+    module.default.registerRemoteHandlers({
+      play: async (command) => {
+        const state = module.default.getPlaybackState();
+        const item = module.default.getActiveMediaItem();
+        if (state === module.PlaybackState.Error && item?.mediaId === STATION.id &&
+          itemMatchesTransportPreference(item)) {
+          // Keep the lock-screen press on the native fast path. A Live365 lookup
+          // here can outlive the remote-command window and turn recovery into a
+          // second press; the station URL is stable, so retry it immediately.
+          beginNativeResume();
+          module.default.retry();
+          module.default.play();
+          updateFromNative();
+          return;
+        }
+        const needsRecovery = failure !== null || snapshot.status === "error" ||
+          state === module.PlaybackState.Ended ||
+          state === module.PlaybackState.Idle;
+        if (needsRecovery) {
+          await playRadio();
+          return;
+        }
+        beginNativeResume();
+        command.performDefault();
+        updateFromNative();
+      },
+      pause: (command) => {
+        generation += 1;
+        request?.abort();
+        request = null;
+        discovering = false;
+        wantsPlayback = false;
+        failure = null;
+        failureKind = null;
+        clearConnectionTimeout();
+        setMetadataPlaybackActive(false);
+        command.performDefault();
+        updateFromNative();
+      },
+    });
+  });
+  playbackSessionComplete = true;
 }
 
 async function initialize() {
@@ -166,10 +258,11 @@ async function initialize() {
   initialization = (async () => {
     // Loading lazily lets missing native modules become a visible error on Play.
     playerModule ??= await import("@rntp/player");
+    configurePlaybackSession();
     const player = playerModule.default;
     if (!setupComplete) {
       if (AppState.currentState !== "active") {
-        throw new Error("Open the app in the foreground before starting radio playback.");
+        throw new PlayerConfigurationError("Open the app in the foreground before starting radio playback.");
       }
       player.setupPlayer({
         contentType: "music",
@@ -200,8 +293,9 @@ async function initialize() {
       player.updateMetadata(index, artist === metadata.artist ? metadata : { ...metadata, artist });
     };
     configureNativeMetadataUpdater(updateActiveMetadata);
-    // Native handling works while JS is suspended and exposes only Play/Pause.
-    player.setCommands({ capabilities: [playerModule.PlayerCommand.PlayPause], handling: "native" });
+    // Only Play/Pause is exposed. RNTP falls back to the native action if the
+    // runtime cannot accept a registered remote handler.
+    player.setCommands({ capabilities: [playerModule.PlayerCommand.PlayPause] });
     if (!listenersComplete) {
       player.addEventListener(playerModule.Event.PlaybackStateChanged, updateFromNative);
       player.addEventListener(playerModule.Event.IsPlayingChanged, ({ playing }) => {
@@ -213,8 +307,15 @@ async function initialize() {
         lastPlayingEvent = playing;
         updateFromNative();
       });
-      player.addEventListener(playerModule.Event.PlaybackError, ({ message }) => {
-        fail(message.trim() || "Playback failed. Check your connection and retry.");
+      player.addEventListener(playerModule.Event.PlaybackError, ({ code, message }) => {
+        if (typeof __DEV__ !== "undefined" && __DEV__) {
+          console.warn(`[radio] Native playback error (${code}): ${message}`);
+        }
+        if (!wantsPlayback && !discovering) {
+          updateFromNative();
+          return;
+        }
+        fail("Couldn't reconnect to WLFM. Check your connection and try again.");
       });
       player.addEventListener(playerModule.Event.MetadataReceived, (metadata) => {
         if (isHlsItem(player.getActiveMediaItem())) {
@@ -264,7 +365,8 @@ async function initialize() {
     await initialization;
   } catch (error: unknown) {
     initialization = null;
-    throw error;
+    if (error instanceof PlayerConfigurationError) throw error;
+    throw new PlayerConfigurationError(error instanceof Error ? error.message : "Native player setup failed.");
   }
 }
 
@@ -346,7 +448,8 @@ export async function playRadio(): Promise<void> {
   wantsPlayback = true;
   discovering = true;
   failure = null;
-  publish({ status: "connecting", error: null, canPause: true });
+  failureKind = null;
+  publish({ status: "connecting", error: null, errorKind: null, canPause: true });
   clearConnectionTimeout();
   timeout = setTimeout(() => {
     if (attempt === generation) fail("The stream took too long to connect. Check your connection and retry.");
@@ -373,7 +476,10 @@ export async function playRadio(): Promise<void> {
       const stream = transportPreference === "hls" && station.preferredStream && station.hlsUrl
         ? { url: station.hlsUrl, mimeType: HLS_MIME_TYPE }
         : station.preferredStream;
-      if (!stream) throw new Error("WLFM has no available supported listening stream. Try again later.");
+      if (!stream) {
+        fail("WLFM is currently unavailable. Try again later.", "station-unavailable");
+        return;
+      }
       const currentUrl = typeof current?.url === "string" ? current.url :
         typeof current?.url === "object" ? current.url.uri : null;
       discovering = false;
@@ -410,7 +516,15 @@ export async function playRadio(): Promise<void> {
     updateFromNative();
   } catch (error: unknown) {
     if (attempt === generation) {
-      fail(error instanceof Error ? error.message : "Playback failed. Try again.");
+      const message = error instanceof Error ? error.message : "Playback failed.";
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.warn(`[radio] Connection attempt failed: ${message}`);
+      }
+      if (error instanceof PlayerConfigurationError) {
+        fail(message, "configuration");
+      } else {
+        fail("Couldn't reconnect to WLFM. Check your connection and try again.");
+      }
     }
   }
 }
@@ -422,12 +536,13 @@ export function pauseRadio(): void {
   discovering = false;
   wantsPlayback = false;
   failure = null;
+  failureKind = null;
   clearConnectionTimeout();
   setMetadataPlaybackActive(false);
   try {
     if (playerModule && setupComplete) playerModule.default.pause();
     updateFromNative();
-    if (!setupComplete) publish({ status: "idle", error: null, canPause: false });
+    if (!setupComplete) publish({ status: "idle", error: null, errorKind: null, canPause: false });
   } catch (error: unknown) {
     fail(error instanceof Error ? error.message : "Could not pause playback.");
   }

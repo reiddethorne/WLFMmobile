@@ -4,6 +4,7 @@ import type { RadioPlayerSnapshot, RadioSleepTimerSnapshot, RadioTransport } fro
 const snapshot: RadioPlayerSnapshot = {
   status: "error",
   error: "Radio playback requires an iOS or Android development build.",
+  errorKind: "configuration",
   canPause: false,
 };
 const sleepTimerSnapshot: RadioSleepTimerSnapshot = { endsAt: null };

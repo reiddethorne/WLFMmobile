@@ -10,11 +10,19 @@ const nativeStub = `
 export const PlaybackState = { Idle: 'idle', Ready: 'ready', Buffering: 'buffering', Ended: 'ended', Error: 'error' };
 export const PlayerCommand = { PlayPause: 'playPause' };
 export const Event = { PlaybackStateChanged: 'state', IsPlayingChanged: 'playing', PlaybackError: 'error', MetadataReceived: 'metadata', MediaMetadataChanged: 'effectiveMetadata', SleepTimerTriggered: 'sleepTimer' };
-export const control = { state: 'idle', playing: false, item: null, sleepTimer: null, calls: [], setupError: false, listeners: new Map() };
+export const control = { state: 'idle', playing: false, item: null, sleepTimer: null, calls: [], setupError: false, listeners: new Map(), remoteHandlers: null };
 export function emit(event, payload) { for (const listener of control.listeners.get(event) ?? []) listener(payload); }
 export function audible() { control.state = 'ready'; control.playing = true; emit('state', {state:'ready'}); emit('playing', {playing:true}); }
 export function triggerSleepTimer() { control.sleepTimer = null; control.playing = false; control.state = control.item ? 'ready' : 'idle'; emit('sleepTimer', {type:'time'}); emit('playing', {playing:false}); }
-export default {
+export function registerPlaybackSession(session) { control.calls.push(['playbackSession']); session(); }
+export function registerRemoteHandlers(handlers) { control.calls.push(['remoteHandlers']); control.remoteHandlers = handlers; return {remove() {control.remoteHandlers = null;}}; }
+export async function remotePlay() {
+  await control.remoteHandlers.play({performDefault() {control.calls.push(['remoteDefault', 'play']); defaultPlayer.play();}});
+}
+export async function remotePause() {
+  await control.remoteHandlers.pause({performDefault() {control.calls.push(['remoteDefault', 'pause']); defaultPlayer.pause();}});
+}
+const defaultPlayer = {
   setupPlayer(config) { control.calls.push(['setup', config]); if (control.setupError) throw new Error('Native setup failed'); },
   setCommands(config) { control.calls.push(['commands', config]); },
   addEventListener(event, listener) { const listeners = control.listeners.get(event) ?? new Set(); listeners.add(listener); control.listeners.set(event, listeners); return { remove() {listeners.delete(listener);} }; },
@@ -36,6 +44,11 @@ export default {
   sleepAfterTime(seconds) { control.calls.push(['sleepAfterTime', seconds]); control.sleepTimer = {type:'time', remainingSeconds:seconds, fadeOutSeconds:0}; },
   getSleepTimer() { return control.sleepTimer; },
   cancelSleepTimer() { control.calls.push(['cancelSleepTimer']); control.sleepTimer = null; },
+};
+export default {
+  ...defaultPlayer,
+  registerPlaybackSession,
+  registerRemoteHandlers,
 };
 `;
 
@@ -97,7 +110,7 @@ async function runtime(t, platform = "android") {
 test("opening the player does not initialize, fetch, or autoplay", async (t) => {
   const { player, native, live365 } = await runtime(t);
   const unsubscribe = player.subscribeToRadioPlayer(() => {});
-  assert.deepEqual(player.getRadioPlayerSnapshot(), {status:"idle", error:null, canPause:false});
+  assert.deepEqual(player.getRadioPlayerSnapshot(), {status:"idle", error:null, errorKind:null, canPause:false});
   assert.deepEqual(native.control.calls, []);
   assert.equal(live365.controls.calls, 0);
   unsubscribe();
@@ -131,7 +144,7 @@ test("simultaneous Play calls initialize once and build one live HLS station ite
   assert.equal(setup.android.wakeMode, "network");
   assert.equal(setup.android.taskRemovedBehavior, "continue");
   const commands = native.control.calls.find(([name]) => name === "commands")[1];
-  assert.deepEqual(commands, {capabilities:["playPause"], handling:"native"});
+  assert.deepEqual(commands, {capabilities:["playPause"]});
   assert.equal(player.getRadioPlayerSnapshot().status, "buffering");
   native.audible();
   assert.equal(player.getRadioPlayerSnapshot().status, "playing");
@@ -157,7 +170,8 @@ test("does not use an HLS URL when Live365 reports no playable stream", async (t
   const { player, native, live365 } = await runtime(t);
   live365.controls.load = async () => ({ ...live365.station, preferredStream: null });
   await player.playRadio();
-  assert.match(player.getRadioPlayerSnapshot().error, /no available supported listening stream/);
+  assert.equal(player.getRadioPlayerSnapshot().errorKind, "station-unavailable");
+  assert.match(player.getRadioPlayerSnapshot().error, /currently unavailable/);
   assert.equal(native.control.calls.some(([name]) => name === "item"), false);
 });
 
@@ -170,6 +184,52 @@ test("pause/resume reuses the live queue and does not initialize or fetch again"
   assert.equal(live365.controls.calls, 1);
   assert.equal(native.control.calls.filter(([name]) => name === "item").length, 1);
   assert.equal(native.control.calls.filter(([name]) => name === "setup").length, 1);
+});
+
+test("a stale native error stays paused and lock-screen Play retries it immediately", async (t) => {
+  const { player, native, live365, AppState } = await runtime(t);
+  await player.playRadio(); native.audible();
+  player.pauseRadio();
+
+  native.control.state = "error";
+  native.emit("error", {code:"network", message:"Paused stream expired"});
+  AppState.handler("active");
+
+  assert.deepEqual(player.getRadioPlayerSnapshot(), {
+    status:"paused", error:null, errorKind:null, canPause:false,
+  });
+
+  const start = native.control.calls.length;
+  await native.remotePlay();
+  const commands = native.control.calls.slice(start).map(([name]) => name);
+  assert.deepEqual(commands, ["retry", "play"]);
+  assert.equal(live365.controls.calls, 1);
+  assert.equal(player.getRadioPlayerSnapshot().status, "buffering");
+});
+
+test("healthy lock-screen Play keeps the fast native resume path", async (t) => {
+  const { player, native, live365 } = await runtime(t);
+  await player.playRadio(); native.audible();
+  await native.remotePause();
+  const start = native.control.calls.length;
+  await native.remotePlay();
+  const commands = native.control.calls.slice(start).map(([name]) => name);
+  assert.deepEqual(commands, ["remoteDefault", "play"]);
+  assert.equal(live365.controls.calls, 1);
+  assert.equal(player.getRadioPlayerSnapshot().status, "connecting");
+});
+
+test("lock-screen Play retries a native error before playing", async (t) => {
+  const { player, native, live365 } = await runtime(t);
+  await player.playRadio(); native.audible();
+  native.control.state = "error";
+  native.emit("error", {code:"network", message:"Network disconnected"});
+  const start = native.control.calls.length;
+  await native.remotePlay();
+  const commands = native.control.calls.slice(start).map(([name]) => name);
+  assert.deepEqual(commands, ["retry", "play"]);
+  assert.equal(live365.controls.calls, 1);
+  assert.equal(player.getRadioPlayerSnapshot().status, "buffering");
 });
 
 test("native sleep timer can be set, replaced, cancelled, and observed", async (t) => {
@@ -286,9 +346,10 @@ test("native playback errors offer retry, with retry before play", async (t) => 
   const { player, native } = await runtime(t);
   await player.playRadio(); native.audible();
   native.control.state = "error";
-  native.emit("error", {message:"Network disconnected"});
+  native.emit("error", {code:"network", message:"Network disconnected"});
   assert.equal(player.getRadioPlayerSnapshot().status, "error");
-  assert.equal(player.getRadioPlayerSnapshot().error, "Network disconnected");
+  assert.equal(player.getRadioPlayerSnapshot().errorKind, "connection");
+  assert.match(player.getRadioPlayerSnapshot().error, /Couldn't reconnect/);
   const start = native.control.calls.length;
   await player.playRadio();
   const commands = native.control.calls.slice(start).map(([name]) => name);
@@ -300,7 +361,7 @@ test("discovery errors can be retried without a second setup", async (t) => {
   const { player, native, live365 } = await runtime(t);
   live365.controls.load = async () => {throw new Error("Offline");};
   await player.playRadio();
-  assert.equal(player.getRadioPlayerSnapshot().error, "Offline");
+  assert.match(player.getRadioPlayerSnapshot().error, /Couldn't reconnect/);
   assert.equal(native.control.calls.some(([name]) => name === "play"), false);
   live365.controls.load = null;
   await player.playRadio(); native.audible();
@@ -313,6 +374,7 @@ test("failed native initialization allows an explicit retry", async (t) => {
   native.control.setupError = true;
   await player.playRadio();
   assert.equal(player.getRadioPlayerSnapshot().error, "Native setup failed");
+  assert.equal(player.getRadioPlayerSnapshot().errorKind, "configuration");
   native.control.setupError = false;
   await player.playRadio(); native.audible();
   assert.equal(player.getRadioPlayerSnapshot().status, "playing");

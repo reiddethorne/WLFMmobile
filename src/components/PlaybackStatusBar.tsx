@@ -12,7 +12,7 @@ const STATUS: Record<RadioPlayerStatus, string> = {
   buffering: "Buffering live audio…",
   playing: "Playing live",
   paused: "Playback paused",
-  error: "Station unavailable",
+  error: "Playback interrupted — Play to reconnect",
 };
 
 interface PlaybackStatusBarProps {

@@ -58,6 +58,7 @@ export default function TabLayout() {
               artworkUrl={nowPlaying.artworkUrl}
               artist={nowPlaying.artist}
               canPause={player.canPause}
+              errorKind={player.errorKind}
               onTogglePlayback={player.togglePlayback}
               status={player.status}
               title={nowPlaying.title}
