@@ -25,7 +25,6 @@ export const reminderNotifications: ReminderNotifications = {
       await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
         name: "Show reminders",
         importance: Notifications.AndroidImportance.HIGH,
-        sound: "default",
       });
     }
     let settings = await Notifications.getPermissionsAsync();

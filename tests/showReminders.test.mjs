@@ -391,6 +391,7 @@ test("native adapter creates Android channel before prompting, handles iOS provi
   native.canAskAgain = true;
   await assert.rejects(reminderNotifications.requestPermission(), /notification settings/);
   assert.deepEqual(native.calls.map(([name]) => name), ["channel", "permission", "prompt"]);
+  assert.equal(native.calls[0][2].sound, undefined);
   native.calls = [];
   native.canAskAgain = false;
   await assert.rejects(reminderNotifications.requestPermission());
