@@ -59,7 +59,7 @@ await Promise.all([
   `),
 ]);
 const importTemp = (name) => import(pathToFileURL(join(temp, name)).href);
-const { ShowRemindersStore, SHOW_PREFERENCES_KEY, favoriteProgramKey, reminderNotificationId,
+const { ShowRemindersStore, SHOW_PREFERENCES_KEY, canSetProgramReminder, favoriteProgramKey, reminderNotificationId,
   reminderTimestamp, parseScheduleEntryParam } = await importTemp("showReminders.mjs");
 const { reminderNotifications } = await importTemp("reminderNotifications.mjs");
 const { useReminderNavigation } = await importTemp("useReminderNavigation.mjs");
@@ -174,6 +174,25 @@ test("past and too-soon airings are skipped while future timed airings get remin
   await f.store.setReminder(shows[2], 5);
   assert.deepEqual([...f.os.values()].map((item) => item.event.id), ["show-1"]);
   assert.equal(f.saved().programReminders.length, 1);
+});
+
+test("a live airing can enable notifications for the program's future airings", async () => {
+  const f = fixture();
+  await f.store.initialize();
+  const live = event("live", { start: "2026-11-03T17:30:00Z", end: "2026-11-03T18:30:00Z" });
+  const future = event("future", { start: "2026-11-04T19:00:00Z", end: "2026-11-04T20:00:00Z" });
+  await f.store.updateSchedule([live, future]);
+
+  assert.equal(canSetProgramReminder(live, NOW), true);
+  await f.store.setReminder(live, 10);
+
+  assert.deepEqual([...f.os.values()].map((item) => item.event.id), ["future"]);
+  assert.equal(f.saved().programReminders.length, 1);
+  assert.equal(f.saved().programReminders[0].minutesBefore, 10);
+  assert.equal(canSetProgramReminder(event("past", { end: "2026-11-03T17:59:59Z" }), NOW), false);
+  assert.equal(canSetProgramReminder(event("all-day", {
+    start: "2026-11-03", end: "2026-11-04", isAllDay: true,
+  }), NOW), false);
 });
 
 test("successful schedule updates add airings, reschedule changed times, and remove cancelled or renamed ones", async () => {

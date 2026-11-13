@@ -59,7 +59,7 @@ export function NotificationPreferences() {
 
         <View style={styles.block}>
           <Text accessibilityRole="header" style={styles.title}>Program reminders ({programReminders.length})</Text>
-          {ready && programReminders.length === 0 && <Text style={styles.detail}>Tap Remind me on a future program in Schedule.</Text>}
+          {ready && programReminders.length === 0 && <Text style={styles.detail}>Tap Remind me on an upcoming or live program in Schedule.</Text>}
           {programReminders.map((program) => {
             const pending = sortedReminders.filter((reminder) => favoriteProgramKey(reminder.event.title) === program.key);
             const next = pending[0];

@@ -60,6 +60,11 @@ export function favoriteProgramKey(title: string): string {
   return title.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-US");
 }
 
+/** A live airing can still enable the program-level reminder for future airings. */
+export function canSetProgramReminder(event: ScheduleEvent, now: number): boolean {
+  return !event.isAllDay && Date.parse(event.end) > now;
+}
+
 export function parseScheduleEntry(value: unknown): ScheduleEvent | null {
   if (!isRecord(value) || typeof value.id !== "string" || !value.id.trim()
     || typeof value.title !== "string" || !value.title.trim()

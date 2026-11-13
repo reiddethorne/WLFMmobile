@@ -4,7 +4,7 @@ import { Pressable, Text, View } from "react-native";
 
 import { useShowPreferences } from "@/context/ShowPreferencesContext";
 import { createThemedStyles } from "@/hooks/useThemedStyles";
-import { favoriteProgramKey } from "@/services/showReminders";
+import { canSetProgramReminder, favoriteProgramKey } from "@/services/showReminders";
 import type { ScheduleEvent } from "@/types/schedule";
 
 export function ShowActions({ event }: { readonly event: ScheduleEvent }) {
@@ -14,7 +14,7 @@ export function ShowActions({ event }: { readonly event: ScheduleEvent }) {
   const [message, setMessage] = useState<string | null>(null);
   const favorite = favorites.some((item) => item.key === favoriteProgramKey(event.title));
   const reminder = programReminders.find((item) => item.key === favoriteProgramKey(event.title));
-  const canRemind = !event.isAllDay && Date.parse(event.start) > Date.now();
+  const canRemind = canSetProgramReminder(event, Date.now());
 
   const run = async (action: () => Promise<void>) => {
     if (busy) return;
