@@ -6,7 +6,6 @@ import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "rea
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { createThemedStyles } from "@/hooks/useThemedStyles";
-import { useRadioSleepTimer } from "@/hooks/useRadioSleepTimer";
 
 const APP_VERSION = Constants.expoConfig?.version ?? "Unknown";
 const CONTACT_URL = "https://solwlfm.lawrence.edu/contact/";
@@ -36,7 +35,6 @@ const MORE_SECTIONS = [
   {
     title: "Settings",
     options: [
-      { label: "Sleep timer", icon: "moon-outline", route: "/sleep-timer", hint: "Opens sleep timer settings" },
       { label: "Preferences", icon: "options-outline", route: "/preferences", hint: "Opens app preferences" },
       { label: "Notifications", icon: "notifications-outline", route: "/notifications", hint: "Opens notification and show reminder settings" },
     ],
@@ -45,7 +43,6 @@ const MORE_SECTIONS = [
 
 export default function More() {
   const router = useRouter();
-  const sleepTimer = useRadioSleepTimer();
   const { styles, theme } = useStyles();
 
   const openExternalUrl = async (url: string) => {
@@ -88,7 +85,6 @@ export default function More() {
                 const isShareStation = "shareUrl" in option;
                 const isExternalLink = "url" in option;
                 const isSettingsLink = "route" in option;
-                const isSleepTimer = option.label === "Sleep timer";
                 const isInteractive = isShareStation || isExternalLink || isSettingsLink;
                 const onPress = isSettingsLink
                   ? () => router.push(option.route)
@@ -130,11 +126,6 @@ export default function More() {
                       />
                     </View>
                     <Text style={styles.optionLabel}>{option.label}</Text>
-                    {isSleepTimer && sleepTimer.remainingSeconds !== null && (
-                      <Text accessibilityLabel={`${Math.ceil(sleepTimer.remainingSeconds / 60)} minutes remaining`} style={styles.optionValue}>
-                        {Math.ceil(sleepTimer.remainingSeconds / 60)} min
-                      </Text>
-                    )}
                     <Ionicons
                       accessibilityElementsHidden
                       color={theme.colors.icon}
@@ -238,11 +229,6 @@ const useStyles = createThemedStyles((theme) => ({
     flex: 1,
     color: theme.colors.text,
     fontSize: theme.fontSize.body,
-    fontWeight: "700",
-  },
-  optionValue: {
-    color: theme.colors.muted,
-    fontSize: 14,
     fontWeight: "700",
   },
 }));

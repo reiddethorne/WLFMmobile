@@ -6,97 +6,104 @@ import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
-const nativeStub = `
-export const PlaybackState = { Idle: 'idle', Ready: 'ready', Buffering: 'buffering', Ended: 'ended', Error: 'error' };
-export const PlayerCommand = { PlayPause: 'playPause' };
-export const Event = { PlaybackStateChanged: 'state', IsPlayingChanged: 'playing', PlaybackError: 'error', MetadataReceived: 'metadata', MediaMetadataChanged: 'effectiveMetadata', SleepTimerTriggered: 'sleepTimer' };
-export const control = { state: 'idle', playing: false, item: null, sleepTimer: null, calls: [], setupError: false, listeners: new Map(), remoteHandlers: null };
-export function emit(event, payload) { for (const listener of control.listeners.get(event) ?? []) listener(payload); }
-export function audible() { control.state = 'ready'; control.playing = true; emit('state', {state:'ready'}); emit('playing', {playing:true}); }
-export function triggerSleepTimer() { control.sleepTimer = null; control.playing = false; control.state = control.item ? 'ready' : 'idle'; emit('sleepTimer', {type:'time'}); emit('playing', {playing:false}); }
-export function registerPlaybackSession(session) { control.calls.push(['playbackSession']); session(); }
-export function registerRemoteHandlers(handlers) { control.calls.push(['remoteHandlers']); control.remoteHandlers = handlers; return {remove() {control.remoteHandlers = null;}}; }
-export async function remotePlay() {
-  await control.remoteHandlers.play({performDefault() {control.calls.push(['remoteDefault', 'play']); defaultPlayer.play();}});
-}
-export async function remotePause() {
-  await control.remoteHandlers.pause({performDefault() {control.calls.push(['remoteDefault', 'pause']); defaultPlayer.pause();}});
-}
-const defaultPlayer = {
-  setupPlayer(config) { control.calls.push(['setup', config]); if (control.setupError) throw new Error('Native setup failed'); },
-  setCommands(config) { control.calls.push(['commands', config]); },
-  addEventListener(event, listener) { const listeners = control.listeners.get(event) ?? new Set(); listeners.add(listener); control.listeners.set(event, listeners); return { remove() {listeners.delete(listener);} }; },
-  getPlaybackState() { return control.state; },
-  isPlaying() { return control.playing; },
-  getActiveMediaItem() {
-    if (!control.item) return null;
-    // Match native RNTP serialization: mimeType configures the source but is
-    // not returned, while app-defined extras survive the round trip.
-    const {mimeType, ...item} = control.item;
-    return item;
+const audioStub = `
+const initialStatus = {
+  id: 1, isLoaded: true, playbackState: 'readyToPlay', playing: false,
+  currentTime: 0, duration: 0, playbackRate: 1, shouldCorrectPitch: false,
+  pitchCorrectionQuality: 'medium', muted: false, loop: false, didJustFinish: false,
+  isBuffering: false, isAudioSamplingSupported: false, timeControlStatus: 'paused',
+  reasonForWaitingToPlay: null,
+};
+export const control = {
+  calls: [], createCount: 0, listener: null, modeError: false,
+  currentStatus: {...initialStatus}, source: null,
+};
+const player = {
+  get currentStatus() { return control.currentStatus; },
+  addListener(event, listener) {
+    control.calls.push(['listener', event]); control.listener = listener;
+    return {remove() { if (control.listener === listener) control.listener = null; }};
   },
-  getActiveMediaItemIndex() { return control.item ? 0 : null; },
-  setMediaItem(item) { control.calls.push(['item', item]); control.item = item; control.state = 'buffering'; emit('state', {state:'buffering'}); },
+  replace(source) {
+    control.calls.push(['replace', source]); control.source = source;
+    control.currentStatus = {...initialStatus, isBuffering: true, timeControlStatus: 'waiting'};
+  },
   play() { control.calls.push(['play']); },
-  pause() { control.calls.push(['pause']); control.playing = false; if (control.state !== 'error') control.state = control.item ? 'ready' : 'idle'; emit('playing', {playing:false}); },
-  retry() { control.calls.push(['retry']); control.state = 'buffering'; emit('state', {state:'buffering'}); },
-  updateMetadata(index, metadata) { control.calls.push(['metadataUpdate', index, metadata]); control.item = {...control.item, ...metadata}; emit('effectiveMetadata', control.item); },
-  sleepAfterTime(seconds) { control.calls.push(['sleepAfterTime', seconds]); control.sleepTimer = {type:'time', remainingSeconds:seconds, fadeOutSeconds:0}; },
-  getSleepTimer() { return control.sleepTimer; },
-  cancelSleepTimer() { control.calls.push(['cancelSleepTimer']); control.sleepTimer = null; },
+  pause() {
+    control.calls.push(['pause']);
+    control.currentStatus = {...control.currentStatus, playing: false, isBuffering: false, timeControlStatus: 'paused'};
+    control.listener?.(control.currentStatus);
+  },
+  setActiveForLockScreen(active, metadata, options) {
+    control.calls.push(['lockScreen', active, metadata, options]);
+  },
+  updateLockScreenMetadata(metadata) { control.calls.push(['metadata', metadata]); },
+  clearLockScreenControls() { control.calls.push(['clearLockScreen']); },
 };
-export default {
-  ...defaultPlayer,
-  registerPlaybackSession,
-  registerRemoteHandlers,
-};
+export function emit(patch) {
+  control.currentStatus = {...control.currentStatus, ...patch};
+  control.listener?.(control.currentStatus);
+}
+export function audible() {
+  emit({playing:true, isBuffering:false, timeControlStatus:'playing', error:undefined});
+}
+export function createAudioPlayer(source, options) {
+  control.createCount++; control.calls.push(['create', source, options]); return player;
+}
+export async function setAudioModeAsync(mode) {
+  control.calls.push(['mode', mode]);
+  if (control.modeError) throw new Error('Native setup failed');
+}
+export async function requestNotificationPermissionsAsync() {
+  control.calls.push(['notificationPermission']); return {granted:true, status:'granted', canAskAgain:true, expires:'never'};
+}
 `;
 
 async function runtime(t, platform = "android") {
   const folder = await mkdtemp(join(tmpdir(), "wlfm-player-tests-"));
   const source = await readFile(new URL("../src/services/player.ts", import.meta.url), "utf8");
-  const metadataTextSource = await readFile(new URL("../src/utils/metadataText.ts", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
   }).outputText
+    .replaceAll('"expo-audio"', '"./audio.mjs"')
     .replaceAll('"react-native"', '"./appstate.mjs"')
-    .replaceAll('"@rntp/player"', '"./native.mjs"')
     .replaceAll('"../config/station"', '"./station.mjs"')
-    .replaceAll('"../constants/assets"', '"./assets.mjs"')
-    .replaceAll('"../utils/metadataText"', '"./metadataText.mjs"')
     .replaceAll('"./live365"', '"./live365.mjs"')
     .replaceAll('"./metadata"', '"./metadata.mjs"');
-  const compiledMetadataText = ts.transpileModule(metadataTextSource, {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-  }).outputText;
   await Promise.all([
     writeFile(join(folder, "player.mjs"), compiled),
-    writeFile(join(folder, "metadataText.mjs"), compiledMetadataText),
-    writeFile(join(folder, "native.mjs"), nativeStub),
-    writeFile(join(folder, "appstate.mjs"), `export const Platform = {OS:${JSON.stringify(platform)}}; export const AppState = {currentState:'active', listenerRegistrations:0, addEventListener(_event, handler) {this.listenerRegistrations++; this.handler=handler; return {remove(){}};}};`),
+    writeFile(join(folder, "audio.mjs"), audioStub),
+    writeFile(join(folder, "appstate.mjs"), `
+      export const Platform = {OS:${JSON.stringify(platform)}};
+      export const AppState = {
+        currentState:'active', listenerRegistrations:0, handler:null,
+        addEventListener(_event, handler) {this.listenerRegistrations++; this.handler=handler; return {remove(){}};},
+      };
+    `),
     writeFile(join(folder, "station.mjs"), `export const STATION = {id:'a98536', name:'WLFM'};`),
-    writeFile(join(folder, "assets.mjs"), `export const STATION_ARTWORK = 42;`),
     writeFile(join(folder, "metadata.mjs"), `
       export const FALLBACK_NOW_PLAYING = {title:'WLFM', artist:'The only alternative in the valley.'};
       export const nowPlayingSnapshot = {title:'API Song', artist:'API Artist', artworkUrl:'https://media.live365.com/api.jpg'};
-      export const controls = {active:[], raw:[], effective:[], resets:0, refreshes:0, updater:null};
+      export const controls = {active:[], resets:0, refreshes:0, updater:null};
       export function configureNativeMetadataUpdater(updater) {controls.updater=updater;}
       export function getNowPlayingSnapshot() {return nowPlayingSnapshot;}
-      export function receiveStreamMetadata(value) {controls.raw.push(value);}
-      export function receiveEffectiveMetadata(value) {controls.effective.push(value);}
       export function refreshMetadataFallback() {controls.refreshes++;}
       export function resetNowPlaying() {controls.resets++;}
       export function setMetadataPlaybackActive(value) {controls.active.push(value);}
     `),
     writeFile(join(folder, "live365.mjs"), `
       export const controls = {calls:0, load:null};
-      export const station = {name:'WLFM', artworkUrl:null, hlsUrl:'https://streaming.live365.com/a98536/playlist.m3u8', preferredStream:{url:'https://streaming.live365.com/a98536', mimeType:'audio/mpeg'}};
+      export const station = {
+        name:'WLFM', artworkUrl:null,
+        hlsUrl:'https://streaming.live365.com/a98536/playlist.m3u8',
+        preferredStream:{url:'https://streaming.live365.com/a98536', mimeType:'audio/mpeg'},
+      };
       export async function getStationInfo(options) {controls.calls++; return controls.load ? controls.load(options) : station;}
     `),
   ]);
   const importFile = (file) => import(pathToFileURL(join(folder, file)).href);
   const player = await importFile("player.mjs");
-  const native = await importFile("native.mjs");
+  const audio = await importFile("audio.mjs");
   const live365 = await importFile("live365.mjs");
   const metadata = await importFile("metadata.mjs");
   const { AppState } = await importFile("appstate.mjs");
@@ -104,387 +111,295 @@ async function runtime(t, platform = "android") {
     player.pauseRadio();
     await rm(folder, { recursive: true, force: true });
   });
-  return { player, native, live365, metadata, AppState };
+  return { player, audio, live365, metadata, AppState };
 }
 
+const callsNamed = (audio, name) => audio.control.calls.filter(([call]) => call === name);
+
 test("opening the player does not initialize, fetch, or autoplay", async (t) => {
-  const { player, native, live365 } = await runtime(t);
+  const { player, audio, live365 } = await runtime(t);
   const unsubscribe = player.subscribeToRadioPlayer(() => {});
   assert.deepEqual(player.getRadioPlayerSnapshot(), {status:"idle", error:null, errorKind:null, canPause:false});
-  assert.deepEqual(native.control.calls, []);
+  assert.equal(audio.control.createCount, 0);
+  assert.deepEqual(audio.control.calls, []);
   assert.equal(live365.controls.calls, 0);
   unsubscribe();
 });
 
-test("simultaneous Play calls initialize once and build one live HLS station item", async (t) => {
-  const { player, native, live365, metadata, AppState } = await runtime(t);
+test("simultaneous Play calls create one persistent player and prefer HLS", async (t) => {
+  const { player, audio, live365, metadata, AppState } = await runtime(t);
   await Promise.all([player.playRadio(), player.playRadio(), player.playRadio()]);
-  assert.equal(native.control.calls.filter(([name]) => name === "setup").length, 1);
+  assert.equal(audio.control.createCount, 1);
   assert.equal(AppState.listenerRegistrations, 1);
-  assert.equal(native.control.calls.filter(([name]) => name === "play").length, 1);
+  assert.equal(callsNamed(audio, "play").length, 1);
   assert.equal(live365.controls.calls, 1);
-  assert.equal(native.control.item.isLive, true);
-  assert.equal(native.control.item.mediaId, "a98536");
-  assert.equal(native.control.item.mimeType, "application/x-mpegURL");
-  assert.deepEqual(native.default.getActiveMediaItem().extras, {
-    playbackTransport:"hls", transportPreference:"hls",
+  const source = callsNamed(audio, "replace")[0][1];
+  assert.equal(source.uri, "https://streaming.live365.com/a98536/playlist.m3u8");
+  assert.equal(source.headers["User-Agent"], "WLFM/1.0 (Expo Audio; android)");
+  assert.equal(source.headers["Icy-MetaData"], undefined);
+  assert.deepEqual(callsNamed(audio, "mode")[0][1], {
+    playsInSilentMode:true, shouldPlayInBackground:true, interruptionMode:"doNotMix",
   });
-  assert.equal(native.control.item.url.uri, "https://streaming.live365.com/a98536/playlist.m3u8");
-  assert.equal(native.control.item.title, "WLFM");
-  assert.equal(native.control.item.artist, "The only alternative in the valley. - WLFM");
-  assert.equal(native.control.item.artworkUrl, 42);
-  assert.deepEqual(native.control.item.url.headers, {
-    "User-Agent":"WLFM/1.0 (Android)",
+  assert.equal(callsNamed(audio, "notificationPermission").length, 1);
+  assert.deepEqual(callsNamed(audio, "create")[0].slice(1), [null, {
+    keepAudioSessionActive:true, updateInterval:250,
+  }]);
+  const lockScreen = callsNamed(audio, "lockScreen")[0];
+  assert.equal(lockScreen[1], true);
+  assert.deepEqual(lockScreen[2], {
+    title:"API Song", artist:"API Artist", albumTitle:"WLFM",
+    artworkUrl:"https://media.live365.com/api.jpg",
+  });
+  assert.deepEqual(lockScreen[3], {
+    isLiveStream:true, showSeekBackward:false, showSeekForward:false,
   });
   assert.equal(metadata.controls.active.at(-1), true);
-  const setup = native.control.calls.find(([name]) => name === "setup")[1];
-  assert.equal(setup.audioMixing, "exclusive");
-  assert.equal(setup.handleAudioBecomingNoisy, true);
-  assert.equal(setup.autoUpdateMetadataFromStream, true);
-  assert.equal(setup.android.wakeMode, "network");
-  assert.equal(setup.android.taskRemovedBehavior, "continue");
-  const commands = native.control.calls.find(([name]) => name === "commands")[1];
-  assert.deepEqual(commands, {capabilities:["playPause"]});
   assert.equal(player.getRadioPlayerSnapshot().status, "buffering");
-  native.audible();
+  audio.audible();
   assert.equal(player.getRadioPlayerSnapshot().status, "playing");
 });
 
-test("falls back to the direct MP3 stream when HLS is unavailable", async (t) => {
-  const { player, native, live365, metadata } = await runtime(t);
-  live365.controls.load = async () => ({ ...live365.station, hlsUrl: null });
+test("iOS does not request Android notification permission", async (t) => {
+  const { player, audio } = await runtime(t, "ios");
   await player.playRadio();
-  assert.equal(native.control.item.mimeType, "audio/mpeg");
-  assert.equal(native.control.item.url.uri, "https://streaming.live365.com/a98536");
-  assert.equal(native.control.item.url.headers["Icy-MetaData"], "1");
-  assert.equal(native.control.item.url.headers["User-Agent"], "WLFM/1.0 (Android)");
-  native.emit("effectiveMetadata", {title:"Direct stream title", artist:"Direct stream artist"});
-  assert.deepEqual(metadata.controls.effective.at(-1), {
-    title:"Direct stream title", artist:"Direct stream artist",
-  });
-  native.emit("metadata", {title:"MP3 song", artist:"MP3 artist"});
-  assert.deepEqual(metadata.controls.raw.at(-1), {title:"MP3 song", artist:"MP3 artist"});
+  assert.equal(callsNamed(audio, "notificationPermission").length, 0);
 });
 
-test("does not use an HLS URL when Live365 reports no playable stream", async (t) => {
-  const { player, native, live365 } = await runtime(t);
-  live365.controls.load = async () => ({ ...live365.station, preferredStream: null });
+test("uses direct MP3 with ICY headers when HLS is unavailable", async (t) => {
+  const { player, audio, live365 } = await runtime(t);
+  live365.controls.load = async () => ({...live365.station, hlsUrl:null});
+  await player.playRadio();
+  const source = callsNamed(audio, "replace")[0][1];
+  assert.equal(source.uri, "https://streaming.live365.com/a98536");
+  assert.equal(source.headers["Icy-MetaData"], "1");
+  assert.equal(source.headers["User-Agent"], "WLFM/1.0 (Expo Audio; android)");
+});
+
+test("a native HLS error falls back once to direct MP3", async (t) => {
+  const { player, audio } = await runtime(t);
+  await player.playRadio();
+  audio.emit({error:"HLS failed", playing:false, isBuffering:false});
+  assert.equal(callsNamed(audio, "replace").length, 2);
+  assert.equal(callsNamed(audio, "replace")[1][1].uri, "https://streaming.live365.com/a98536");
+  assert.equal(callsNamed(audio, "replace")[1][1].headers["Icy-MetaData"], "1");
+  assert.equal(player.getRadioPlayerSnapshot().status, "buffering");
+  audio.emit({error:"MP3 failed", playing:false, isBuffering:false});
+  assert.equal(player.getRadioPlayerSnapshot().status, "error");
+  assert.equal(callsNamed(audio, "replace").length, 2);
+});
+
+test("no playable direct stream reports station unavailable", async (t) => {
+  const { player, audio, live365 } = await runtime(t);
+  live365.controls.load = async () => ({...live365.station, preferredStream:null});
   await player.playRadio();
   assert.equal(player.getRadioPlayerSnapshot().errorKind, "station-unavailable");
   assert.match(player.getRadioPlayerSnapshot().error, /currently unavailable/);
-  assert.equal(native.control.calls.some(([name]) => name === "item"), false);
+  assert.equal(callsNamed(audio, "replace").length, 0);
 });
 
-test("pause/resume reuses the live queue and does not initialize or fetch again", async (t) => {
-  const { player, native, live365 } = await runtime(t);
-  await player.playRadio(); native.audible();
+test("a pause within the HLS live window preserves controls and reuses the source", async (t) => {
+  let now = 1_000;
+  t.mock.method(Date, "now", () => now);
+  const { player, audio, live365 } = await runtime(t);
+  await player.playRadio(); audio.audible();
   player.pauseRadio();
+  now += 14_999;
   assert.equal(player.getRadioPlayerSnapshot().status, "paused");
-  await player.playRadio(); native.audible();
+  assert.equal(callsNamed(audio, "clearLockScreen").length, 0);
+  await player.playRadio(); audio.audible();
   assert.equal(live365.controls.calls, 1);
-  assert.equal(native.control.calls.filter(([name]) => name === "item").length, 1);
-  assert.equal(native.control.calls.filter(([name]) => name === "setup").length, 1);
+  assert.equal(callsNamed(audio, "replace").length, 1);
+  assert.equal(audio.control.createCount, 1);
 });
 
-test("a stale native error stays paused and lock-screen Play retries it immediately", async (t) => {
-  const { player, native, live365, AppState } = await runtime(t);
-  await player.playRadio(); native.audible();
+test("resume after a stale pause refreshes the source on the persistent player", async (t) => {
+  let now = 1_000;
+  t.mock.method(Date, "now", () => now);
+  const { player, audio, live365 } = await runtime(t);
+  await player.playRadio(); audio.audible();
   player.pauseRadio();
+  now += 15_001;
 
-  native.control.state = "error";
-  native.emit("error", {code:"network", message:"Paused stream expired"});
-  AppState.handler("active");
+  await player.playRadio();
 
-  assert.deepEqual(player.getRadioPlayerSnapshot(), {
-    status:"paused", error:null, errorKind:null, canPause:false,
-  });
-
-  const start = native.control.calls.length;
-  await native.remotePlay();
-  const commands = native.control.calls.slice(start).map(([name]) => name);
-  assert.deepEqual(commands, ["retry", "play"]);
   assert.equal(live365.controls.calls, 1);
+  assert.equal(callsNamed(audio, "replace").length, 2);
+  assert.equal(callsNamed(audio, "replace")[1][1].uri, "https://streaming.live365.com/a98536/playlist.m3u8");
+  assert.equal(audio.control.createCount, 1);
   assert.equal(player.getRadioPlayerSnapshot().status, "buffering");
 });
 
-test("healthy lock-screen Play keeps the fast native resume path", async (t) => {
-  const { player, native, live365 } = await runtime(t);
-  await player.playRadio(); native.audible();
-  await native.remotePause();
-  const start = native.control.calls.length;
-  await native.remotePlay();
-  const commands = native.control.calls.slice(start).map(([name]) => name);
-  assert.deepEqual(commands, ["remoteDefault", "play"]);
-  assert.equal(live365.controls.calls, 1);
-  assert.equal(player.getRadioPlayerSnapshot().status, "connecting");
-});
+test("external Play refreshes a stale paused source", async (t) => {
+  let now = 1_000;
+  t.mock.method(Date, "now", () => now);
+  const { player, audio, live365 } = await runtime(t);
+  await player.playRadio(); audio.audible();
+  player.pauseRadio();
+  now += 15_001;
 
-test("lock-screen Play retries a native error before playing", async (t) => {
-  const { player, native, live365 } = await runtime(t);
-  await player.playRadio(); native.audible();
-  native.control.state = "error";
-  native.emit("error", {code:"network", message:"Network disconnected"});
-  const start = native.control.calls.length;
-  await native.remotePlay();
-  const commands = native.control.calls.slice(start).map(([name]) => name);
-  assert.deepEqual(commands, ["retry", "play"]);
+  audio.emit({playing:false, isBuffering:true, timeControlStatus:"waiting"});
+
   assert.equal(live365.controls.calls, 1);
+  assert.equal(callsNamed(audio, "replace").length, 2);
+  assert.equal(audio.control.createCount, 1);
   assert.equal(player.getRadioPlayerSnapshot().status, "buffering");
 });
 
-test("native sleep timer can be set, replaced, cancelled, and observed", async (t) => {
-  const { player, native } = await runtime(t);
-  assert.equal(player.setRadioSleepTimer(30), false);
-  assert.deepEqual(player.getRadioSleepTimerSnapshot(), {endsAt:null});
-
-  await player.playRadio(); native.audible();
-  let updates = 0;
-  const unsubscribe = player.subscribeToRadioSleepTimer(() => updates++);
-  const before = Date.now();
-  assert.equal(player.setRadioSleepTimer(30), true);
-  assert.deepEqual(native.control.calls.at(-1), ["sleepAfterTime", 1_800]);
-  assert.ok(player.getRadioSleepTimerSnapshot().endsAt >= before + 1_800_000);
-  assert.ok(player.getRadioSleepTimerSnapshot().endsAt <= Date.now() + 1_800_000);
-
-  assert.equal(player.setRadioSleepTimer(45), true);
-  assert.deepEqual(native.control.calls.at(-1), ["sleepAfterTime", 2_700]);
-  player.cancelRadioSleepTimer();
-  assert.equal(native.control.calls.at(-1)[0], "cancelSleepTimer");
-  assert.deepEqual(player.getRadioSleepTimerSnapshot(), {endsAt:null});
-  assert.equal(updates, 3);
-  unsubscribe();
-});
-
-test("native sleep timer accepts an exact future deadline", async (t) => {
-  const { player, native } = await runtime(t);
-  await player.playRadio(); native.audible();
-  const endsAt = Date.now() + 123_456;
-  assert.equal(player.setRadioSleepTimerUntil(endsAt), true);
-  const seconds = native.control.calls.at(-1)[1];
-  assert.ok(seconds === 123 || seconds === 124);
-  assert.deepEqual(player.getRadioSleepTimerSnapshot(), {endsAt});
-  assert.equal(player.setRadioSleepTimerUntil(Date.now()), false);
-  assert.deepEqual(player.getRadioSleepTimerSnapshot(), {endsAt});
-});
-
-test("native sleep timer expiry clears the timer and reconciles paused playback", async (t) => {
-  const { player, native } = await runtime(t);
-  await player.playRadio(); native.audible();
-  player.setRadioSleepTimer(15);
-  native.triggerSleepTimer();
-  assert.deepEqual(player.getRadioSleepTimerSnapshot(), {endsAt:null});
-  assert.equal(player.getRadioPlayerSnapshot().status, "paused");
-});
-
-test("replaces a legacy native item that has no transport marker", async (t) => {
-  const { player, native } = await runtime(t);
-  native.control.item = {
-    mediaId:"a98536", url:"https://streaming.live365.com/a98536",
-    mimeType:"audio/mpeg", title:"WLFM", artist:"The only alternative in the valley. - WLFM", isLive:true,
-  };
-  native.control.state = "ready";
+test("native buffering transitions, pause, and external resume are reflected in app state", async (t) => {
+  const { player, audio } = await runtime(t);
   await player.playRadio();
-  assert.equal(native.control.item.mimeType, "application/x-mpegURL");
-  assert.deepEqual(native.control.item.extras, {
-    playbackTransport:"hls", transportPreference:"hls",
-  });
-  assert.equal(native.control.calls.filter(([name]) => name === "item").length, 1);
-});
-
-test("development transport selection pauses, resets, and creates a fresh MP3 connection", async (t) => {
-  const { player, native, live365, metadata } = await runtime(t);
-  let transportUpdates = 0;
-  const unsubscribe = player.subscribeToRadioTransport(() => transportUpdates++);
-  await player.playRadio(); native.audible();
-  const resetsBeforeSwitch = metadata.controls.resets;
-
-  player.setRadioTransport("mp3");
-  assert.equal(player.getRadioTransportSnapshot(), "mp3");
+  audio.emit({playing:false, isBuffering:true, timeControlStatus:"waiting"});
+  assert.equal(player.getRadioPlayerSnapshot().status, "buffering");
+  audio.audible();
+  assert.equal(player.getRadioPlayerSnapshot().status, "playing");
+  audio.emit({playing:false, isBuffering:true, timeControlStatus:"waiting"});
+  assert.equal(player.getRadioPlayerSnapshot().status, "buffering");
+  audio.audible();
+  assert.equal(player.getRadioPlayerSnapshot().status, "playing");
+  audio.emit({playing:false, isBuffering:false, timeControlStatus:"paused"});
   assert.equal(player.getRadioPlayerSnapshot().status, "paused");
-  assert.equal(metadata.controls.resets, resetsBeforeSwitch + 1);
-  assert.equal(metadata.controls.active.at(-1), false);
-  assert.equal(transportUpdates, 1);
-
-  await player.playRadio();
-  assert.equal(live365.controls.calls, 2);
-  assert.equal(native.control.item.mimeType, "audio/mpeg");
-  assert.deepEqual(native.control.item.extras, {
-    playbackTransport:"mp3", transportPreference:"mp3",
-  });
-  unsubscribe();
+  audio.emit({playing:true, isBuffering:false, timeControlStatus:"playing"});
+  assert.equal(player.getRadioPlayerSnapshot().status, "playing");
 });
 
-test("Pause cancels pending discovery and stale responses cannot start audio", async (t) => {
-  const { player, native, live365 } = await runtime(t);
+test("Pause cancels discovery and a stale response cannot start playback", async (t) => {
+  const { player, audio, live365 } = await runtime(t);
   let resolve;
   let signal;
-  live365.controls.load = (options) => {signal = options.signal; return new Promise((done) => {resolve = done;});};
+  live365.controls.load = (options) => {signal=options.signal; return new Promise((done) => {resolve=done;});};
   const attempt = player.playRadio();
   await new Promise((done) => setImmediate(done));
-  assert.equal(player.getRadioPlayerSnapshot().canPause, true);
   player.pauseRadio();
   assert.equal(signal.aborted, true);
-  resolve(live365.station); await attempt;
-  assert.equal(native.control.calls.some(([name]) => name === "play"), false);
+  resolve(live365.station);
+  await attempt;
+  assert.equal(callsNamed(audio, "replace").length, 0);
+  assert.equal(callsNamed(audio, "play").length, 0);
   assert.equal(player.getRadioPlayerSnapshot().status, "idle");
 });
 
-test("Play/Pause/Play ignores the superseded attempt", async (t) => {
-  const { player, native, live365 } = await runtime(t);
+test("Play/Pause/Play rejects the superseded response", async (t) => {
+  const { player, audio, live365 } = await runtime(t);
   let resolve;
-  live365.controls.load = () => new Promise((done) => {resolve = done;});
+  live365.controls.load = () => new Promise((done) => {resolve=done;});
   const first = player.playRadio();
   await new Promise((done) => setImmediate(done));
   player.pauseRadio();
   live365.controls.load = null;
   await player.playRadio();
-  resolve(live365.station); await first;
-  assert.equal(native.control.calls.filter(([name]) => name === "play").length, 1);
+  resolve(live365.station);
+  await first;
+  assert.equal(callsNamed(audio, "replace").length, 1);
+  assert.equal(callsNamed(audio, "play").length, 1);
 });
 
-test("native playback errors offer retry, with retry before play", async (t) => {
-  const { player, native } = await runtime(t);
-  await player.playRadio(); native.audible();
-  native.control.state = "error";
-  native.emit("error", {code:"network", message:"Network disconnected"});
+test("terminal playback errors support an explicit fresh retry", async (t) => {
+  const { player, audio, live365 } = await runtime(t);
+  live365.controls.load = async () => ({...live365.station, hlsUrl:null});
+  await player.playRadio(); audio.audible();
+  audio.emit({error:"Network disconnected", playing:false});
   assert.equal(player.getRadioPlayerSnapshot().status, "error");
-  assert.equal(player.getRadioPlayerSnapshot().errorKind, "connection");
   assert.match(player.getRadioPlayerSnapshot().error, /Couldn't reconnect/);
-  const start = native.control.calls.length;
   await player.playRadio();
-  const commands = native.control.calls.slice(start).map(([name]) => name);
-  assert.deepEqual(commands, ["retry", "play"]);
-  assert.equal(player.getRadioPlayerSnapshot().status, "buffering");
+  assert.equal(live365.controls.calls, 2);
+  assert.equal(callsNamed(audio, "replace").length, 2);
+  assert.equal(audio.control.createCount, 1);
 });
 
-test("discovery errors can be retried without a second setup", async (t) => {
-  const { player, native, live365 } = await runtime(t);
-  live365.controls.load = async () => {throw new Error("Offline");};
-  await player.playRadio();
-  assert.match(player.getRadioPlayerSnapshot().error, /Couldn't reconnect/);
-  assert.equal(native.control.calls.some(([name]) => name === "play"), false);
-  live365.controls.load = null;
-  await player.playRadio(); native.audible();
-  assert.equal(player.getRadioPlayerSnapshot().status, "playing");
-  assert.equal(native.control.calls.filter(([name]) => name === "setup").length, 1);
-});
+test("discovery and initialization failures allow explicit retry", async (t) => {
+  const first = await runtime(t);
+  first.live365.controls.load = async () => {throw new Error("Offline");};
+  await first.player.playRadio();
+  assert.match(first.player.getRadioPlayerSnapshot().error, /Couldn't reconnect/);
+  first.live365.controls.load = null;
+  await first.player.playRadio(); first.audio.audible();
+  assert.equal(first.player.getRadioPlayerSnapshot().status, "playing");
+  assert.equal(first.audio.control.createCount, 1);
 
-test("failed native initialization allows an explicit retry", async (t) => {
-  const { player, native } = await runtime(t);
-  native.control.setupError = true;
-  await player.playRadio();
-  assert.equal(player.getRadioPlayerSnapshot().error, "Native setup failed");
-  assert.equal(player.getRadioPlayerSnapshot().errorKind, "configuration");
-  native.control.setupError = false;
-  await player.playRadio(); native.audible();
-  assert.equal(player.getRadioPlayerSnapshot().status, "playing");
+  const second = await runtime(t);
+  second.audio.control.modeError = true;
+  await second.player.playRadio();
+  assert.equal(second.player.getRadioPlayerSnapshot().errorKind, "configuration");
+  assert.equal(second.player.getRadioPlayerSnapshot().error, "Native setup failed");
+  second.audio.control.modeError = false;
+  await second.player.playRadio(); second.audio.audible();
+  assert.equal(second.player.getRadioPlayerSnapshot().status, "playing");
+  assert.equal(second.audio.control.createCount, 1);
 });
 
 test("setup is rejected outside the foreground", async (t) => {
-  const { player, native, AppState } = await runtime(t);
+  const { player, audio, AppState } = await runtime(t);
   AppState.currentState = "background";
   await player.playRadio();
   assert.match(player.getRadioPlayerSnapshot().error, /foreground/);
-  assert.equal(native.control.calls.some(([name]) => name === "setup"), false);
+  assert.equal(audio.control.createCount, 0);
   AppState.currentState = "active";
-  await player.playRadio(); native.audible();
-});
-
-test("native pause updates the screen and unsubscribed observers stay removed", async (t) => {
-  const { player, native } = await runtime(t);
-  let updates = 0;
-  const unsubscribe = player.subscribeToRadioPlayer(() => updates++);
-  await player.playRadio(); native.audible();
-  native.default.pause();
-  assert.equal(player.getRadioPlayerSnapshot().status, "paused");
-  unsubscribe(); const before = updates;
-  native.audible();
-  assert.equal(updates, before);
+  await player.playRadio(); audio.audible();
   assert.equal(player.getRadioPlayerSnapshot().status, "playing");
 });
-
-test("HLS ignores fallback stream events and restores API metadata to the native item", async (t) => {
-  const { player, native, metadata } = await runtime(t);
-  await player.playRadio(); native.audible();
-  native.emit("metadata", {title:"WLFM", artist:"The only alternative in the valley. - WLFM"});
-  native.emit("effectiveMetadata", {title:"WLFM", artist:"The only alternative in the valley. - WLFM"});
-  assert.deepEqual(metadata.controls.raw, []);
-  assert.deepEqual(metadata.controls.effective, []);
-  assert.equal(native.control.item.title, "API Song");
-  assert.equal(native.control.item.artist, "API Artist - WLFM");
-  assert.equal(native.control.item.artworkUrl, "https://media.live365.com/api.jpg");
-  metadata.controls.updater({artworkUrl:"https://media.live365.com/home.jpg"});
-  assert.deepEqual(native.control.calls.at(-1), ["metadataUpdate", 0, {artworkUrl:"https://media.live365.com/home.jpg"}]);
-  assert.equal(metadata.controls.active.includes(true), true);
-  player.pauseRadio();
-  assert.equal(metadata.controls.active.at(-1), false);
-});
-
-for (const platform of ["ios", "android"]) {
-  test(`${platform} native metadata appends WLFM without changing app metadata`, async (t) => {
-    const { player, native, live365, metadata } = await runtime(t, platform);
-    live365.controls.load = async () => ({ ...live365.station, hlsUrl: null });
-    await player.playRadio();
-    assert.equal(native.control.item.artist, "The only alternative in the valley. - WLFM");
-
-    native.emit("metadata", {title:"Everybody`s Talkin’", artist:"D´Angelo"});
-    assert.deepEqual(metadata.controls.raw, [{title:"Everybody`s Talkin’", artist:"D´Angelo"}]);
-    assert.deepEqual(metadata.controls.effective.at(-1), {
-      ...native.control.item,
-      artist:"D'Angelo",
-    });
-    assert.equal(native.control.item.title, "Everybody's Talkin'");
-    assert.equal(native.control.item.artist, "D'Angelo - WLFM");
-
-    metadata.controls.updater({title:"Next", artist:"Another Artist", artworkUrl:42});
-    assert.equal(native.control.item.artist, "Another Artist - WLFM");
-  });
-}
 
 test("foreground reconciliation adopts native state after suspended events", async (t) => {
-  const { player, native, AppState } = await runtime(t);
-  await player.playRadio(); native.audible();
-  // Model a lock-screen pause whose JS event was missed while the runtime slept.
-  native.control.playing = false;
-  native.control.state = "ready";
+  const { player, audio, metadata, AppState } = await runtime(t);
+  await player.playRadio(); audio.audible();
+  audio.control.currentStatus = {...audio.control.currentStatus, playing:false, isBuffering:false, timeControlStatus:"paused"};
   AppState.handler("active");
   assert.equal(player.getRadioPlayerSnapshot().status, "paused");
-  native.control.playing = true;
+  audio.control.currentStatus = {...audio.control.currentStatus, playing:true, timeControlStatus:"playing"};
   AppState.handler("active");
   assert.equal(player.getRadioPlayerSnapshot().status, "playing");
+  assert.equal(metadata.controls.refreshes, 2);
 });
 
-test("an ended live stream reports an actionable error", async (t) => {
-  const { player, native } = await runtime(t);
-  await player.playRadio(); native.audible();
-  native.control.playing = false; native.control.state = "ended";
-  native.emit("state", {state:"ended"});
-  assert.match(player.getRadioPlayerSnapshot().error, /ended/);
+test("metadata updates system controls without replacing the audio source", async (t) => {
+  const { player, audio, metadata } = await runtime(t);
+  await player.playRadio(); audio.audible();
+  const replacements = callsNamed(audio, "replace").length;
+  metadata.controls.updater({
+    title:"Next Song", artist:"Next Artist", artworkUrl:"https://media.live365.com/next.jpg",
+  });
+  assert.deepEqual(callsNamed(audio, "metadata").at(-1)[1], {
+    title:"Next Song", artist:"Next Artist", albumTitle:"WLFM",
+    artworkUrl:"https://media.live365.com/next.jpg",
+  });
+  assert.equal(callsNamed(audio, "replace").length, replacements);
 });
 
-test("stalled connections time out and cannot start from a late response", async (t) => {
-  const { player, native, live365 } = await runtime(t);
+test("changing the diagnostic transport requires a fresh source", async (t) => {
+  const { player, audio, live365, metadata } = await runtime(t);
+  await player.playRadio(); audio.audible();
+  player.setRadioTransport("mp3");
+  assert.equal(player.getRadioTransportSnapshot(), "mp3");
+  assert.equal(callsNamed(audio, "clearLockScreen").length, 1);
+  await player.playRadio();
+  assert.equal(live365.controls.calls, 2);
+  assert.equal(callsNamed(audio, "replace").length, 2);
+  assert.equal(callsNamed(audio, "replace")[1][1].uri, "https://streaming.live365.com/a98536");
+  assert.ok(metadata.controls.resets >= 2);
+});
+
+test("stalled discovery times out and rejects a late response", async (t) => {
+  const { player, audio, live365 } = await runtime(t);
   let resolve;
-  live365.controls.load = () => new Promise((done) => {resolve = done;});
+  live365.controls.load = () => new Promise((done) => {resolve=done;});
   t.mock.timers.enable({apis:["setTimeout"]});
   const attempt = player.playRadio();
   await new Promise((done) => setImmediate(done));
   t.mock.timers.tick(30_001);
   assert.equal(player.getRadioPlayerSnapshot().status, "error");
   assert.match(player.getRadioPlayerSnapshot().error, /too long/);
-  resolve(live365.station); await attempt;
-  assert.equal(native.control.calls.some(([name]) => name === "play"), false);
+  resolve(live365.station);
+  await attempt;
+  assert.equal(callsNamed(audio, "replace").length, 0);
 });
 
-test("retry after a buffering timeout creates a fresh connection", async (t) => {
-  const { player, native, live365 } = await runtime(t);
+test("retry after a buffering timeout creates a fresh source on the same player", async (t) => {
+  const { player, audio, live365 } = await runtime(t);
   t.mock.timers.enable({apis:["setTimeout"]});
   await player.playRadio();
   t.mock.timers.tick(30_001);
   assert.equal(player.getRadioPlayerSnapshot().status, "error");
-  await player.playRadio(); native.audible();
+  await player.playRadio(); audio.audible();
   assert.equal(live365.controls.calls, 2);
-  assert.equal(native.control.calls.filter(([name]) => name === "item").length, 2);
-  assert.equal(native.control.calls.filter(([name]) => name === "setup").length, 1);
-  assert.equal(player.getRadioPlayerSnapshot().status, "playing");
+  assert.equal(callsNamed(audio, "replace").length, 2);
+  assert.equal(audio.control.createCount, 1);
 });

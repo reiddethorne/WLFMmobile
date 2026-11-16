@@ -1,10 +1,11 @@
+import { Asset } from "expo-asset";
+
 import { STATION } from "../config/station";
 import { STATION_ARTWORK } from "../constants/assets";
 import type {
   NativeMetadataUpdate,
   NowPlayingSnapshot,
   RecentlyPlayedSnapshot,
-  StreamMetadataInput,
 } from "../types/metadata";
 import type { Live365NowPlaying, Live365RecentTrack } from "../types/live365";
 import { cleanMetadataText } from "../utils/metadataText";
@@ -30,10 +31,10 @@ const fallbackSnapshot: NowPlayingSnapshot = {
 };
 
 let snapshot = fallbackSnapshot;
-let streamTrack: TrackMetadata | null = null;
-let directoryTrack: TrackMetadata | null = null;
 let nativeUpdater: ((metadata: NativeMetadataUpdate) => void) | null = null;
 let lastNativeUpdate = "";
+let fallbackArtworkUrl: string | null = null;
+let fallbackArtworkInitialization: Promise<void> | null = null;
 let playbackActive = false;
 let pollingActive = false;
 let cycle = 0;
@@ -48,24 +49,12 @@ function httpsArtwork(value: unknown): string | null {
   if (!cleaned) return null;
   try {
     const url = new URL(cleaned);
-    return url.protocol === "https:" ? url.toString() : null;
+    return url.protocol === "https:" && !url.username && !url.password
+      ? url.toString()
+      : null;
   } catch {
     return null;
   }
-}
-
-function normalize(value: string): string {
-  return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-}
-
-function sameTrack(stream: TrackMetadata, directory: TrackMetadata): boolean {
-  if (!stream.title || !directory.title || normalize(stream.title) !== normalize(directory.title)) return false;
-  if (!stream.artist) return true;
-  return Boolean(directory.artist && normalize(stream.artist) === normalize(directory.artist));
-}
-
-function isFallbackTrack(track: TrackMetadata): boolean {
-  return track.title === FALLBACK_NOW_PLAYING.title;
 }
 
 function publish(next: NowPlayingSnapshot) {
@@ -101,7 +90,32 @@ function updateNative(metadata: NativeMetadataUpdate) {
   nativeUpdater?.(metadata);
 }
 
-function toTrack(value: Live365NowPlaying | StreamMetadataInput): TrackMetadata | null {
+function nativeMetadataFor(value: NowPlayingSnapshot): NativeMetadataUpdate {
+  const artworkUrl = value.artworkUrl ?? fallbackArtworkUrl;
+  return {
+    title: value.title,
+    artist: value.artist,
+    ...(artworkUrl ? { artworkUrl } : {}),
+  };
+}
+
+async function prepareFallbackArtwork(): Promise<void> {
+  if (fallbackArtworkUrl) return;
+  fallbackArtworkInitialization ??= (async () => {
+    const asset = Asset.fromModule(STATION_ARTWORK);
+    try {
+      const downloaded = await asset.downloadAsync();
+      fallbackArtworkUrl = downloaded.localUri ?? downloaded.uri;
+    } catch {
+      // Asset.fromModule supplies a real Metro/bundled URI even when a cache
+      // download is unavailable. Never fabricate a native file path.
+      fallbackArtworkUrl = asset.localUri ?? asset.uri;
+    }
+  })();
+  await fallbackArtworkInitialization;
+}
+
+function toTrack(value: Live365NowPlaying): TrackMetadata | null {
   const track = {
     title: cleanMetadataText(value.title),
     artist: cleanMetadataText(value.artist),
@@ -110,38 +124,21 @@ function toTrack(value: Live365NowPlaying | StreamMetadataInput): TrackMetadata 
   return track.title || track.artist || track.artworkUrl ? track : null;
 }
 
-function publishStream() {
-  if (!streamTrack) return;
-  const matchingDirectory = directoryTrack && sameTrack(streamTrack, directoryTrack) ? directoryTrack : null;
-  const artworkUrl = streamTrack.artworkUrl ?? matchingDirectory?.artworkUrl ?? null;
-  publish({
-    title: streamTrack.title ?? FALLBACK_NOW_PLAYING.title,
-    artist: streamTrack.artist ?? FALLBACK_NOW_PLAYING.artist,
-    artworkUrl,
-    source: "stream",
-  });
-  updateNative({ artworkUrl: artworkUrl ?? STATION_ARTWORK });
-}
-
-function applyDirectoryMetadata(value: Live365NowPlaying | null) {
-  directoryTrack = value ? toTrack(value) : null;
-  if (streamTrack) {
-    publishStream();
-    return;
-  }
-  if (!directoryTrack) {
+function applyLive365Metadata(value: Live365NowPlaying | null) {
+  const track = value ? toTrack(value) : null;
+  if (!track) {
     publish(fallbackSnapshot);
-    updateNative({ ...FALLBACK_NOW_PLAYING, artworkUrl: STATION_ARTWORK });
+    updateNative(nativeMetadataFor(fallbackSnapshot));
     return;
   }
   const next: NowPlayingSnapshot = {
-    title: directoryTrack.title ?? FALLBACK_NOW_PLAYING.title,
-    artist: directoryTrack.artist ?? FALLBACK_NOW_PLAYING.artist,
-    artworkUrl: directoryTrack.artworkUrl,
+    title: track.title ?? FALLBACK_NOW_PLAYING.title,
+    artist: track.artist ?? FALLBACK_NOW_PLAYING.artist,
+    artworkUrl: track.artworkUrl,
     source: "live365",
   };
   publish(next);
-  updateNative({ title: next.title, artist: next.artist, artworkUrl: next.artworkUrl ?? STATION_ARTWORK });
+  updateNative(nativeMetadataFor(next));
 }
 
 function clearTimer() {
@@ -157,11 +154,11 @@ async function poll(expectedCycle: number) {
     if (pollingActive && expectedCycle === cycle && !controller.signal.aborted) {
       // History is visible on screen immediately, but the player remains at its
       // deliberate fallback until the listener explicitly starts playback.
-      if (playbackActive) applyDirectoryMetadata(station.nowPlaying);
+      if (playbackActive) applyLive365Metadata(station.nowPlaying);
       publishRecentlyPlayed({ tracks: station.recentlyPlayed, status: "ready" });
     }
   } catch {
-    // Stream metadata and the last valid value remain usable when Live365 is unavailable.
+    // Keep the last valid now-playing and history values when Live365 is unavailable.
     if (pollingActive && expectedCycle === cycle && !controller.signal.aborted) {
       publishRecentlyPlayed({ tracks: recentlyPlayedSnapshot.tracks, status: "error" });
     }
@@ -189,43 +186,19 @@ function reconcilePolling() {
   }
 }
 
-export function configureNativeMetadataUpdater(updater: (metadata: NativeMetadataUpdate) => void) {
+export async function configureNativeMetadataUpdater(
+  updater: (metadata: NativeMetadataUpdate) => void,
+): Promise<void> {
   nativeUpdater = updater;
-}
-
-/** Raw ICY/ID3 metadata is authoritative for title and artist. */
-export function receiveStreamMetadata(value: StreamMetadataInput) {
-  const next = toTrack(value);
-  if (!next) {
-    updateNative({ title: snapshot.title, artist: snapshot.artist, artworkUrl: snapshot.artworkUrl ?? STATION_ARTWORK });
-    return;
-  }
-  streamTrack = next;
-  publishStream();
-}
-
-/** Effective native metadata confirms system/UI synchronization without changing source priority. */
-export function receiveEffectiveMetadata(value: StreamMetadataInput) {
-  if (streamTrack) {
-    publishStream();
-    return;
-  }
-  const effective = toTrack(value);
-  if (effective && !isFallbackTrack(effective) && (!directoryTrack || !sameTrack(effective, directoryTrack))) {
-    streamTrack = effective;
-    publishStream();
-  } else if (directoryTrack) {
-    applyDirectoryMetadata(directoryTrack);
-  } else {
-    publish(fallbackSnapshot);
-  }
+  lastNativeUpdate = "";
+  await prepareFallbackArtwork();
+  updateNative(nativeMetadataFor(snapshot));
 }
 
 export function resetNowPlaying() {
-  streamTrack = null;
-  directoryTrack = null;
   lastNativeUpdate = "";
   publish(fallbackSnapshot);
+  updateNative(nativeMetadataFor(fallbackSnapshot));
 }
 
 export function setMetadataPlaybackActive(nextActive: boolean) {

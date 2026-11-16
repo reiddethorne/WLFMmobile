@@ -27,7 +27,7 @@ export default function Index() {
           </View>
           <View style={styles.content}>
             <RadioPlayer />
-            {__DEV__ && showDiagnostics && <Live365Diagnostics />}
+            {showDiagnostics && <Live365Diagnostics />}
           </View>
         </ScrollView>
       </SafeAreaView>

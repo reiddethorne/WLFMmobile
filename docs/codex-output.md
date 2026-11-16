@@ -51,23 +51,17 @@ Native device acceptance remains separate from these automated checks.
 
 Verified September 29, 2026: Expo SDK 57 (`~57.0.26`), React Native `0.86.3`,
 React `19.2.3`, Expo Router `~57.0.24`, TypeScript `~6.0.3`, Expo Development
-Client `~57.0.19`, and Track Player **`@rntp/player` pinned to `5.9.2`**.
-Track Player v4 (`react-native-track-player`) is frozen.
-V5 requires RN 0.74+ and the New Architecture, which Expo 57 always enables.
-This meets documented requirements; native compilation and device behavior still
-need verification. The installed v5 license allows free academic use strictly for
-instruction or noncommercial research. A publicly operated campus station may
-fall outside that exemption, even if nonprofit; confirm eligibility or obtain a
-license before deploying. See `node_modules/@rntp/player/license.txt`.
-The optional `shaka-player` peer is omitted because web playback is outside scope.
+Client `~57.0.19`, Expo Audio `~57.0.5`, and Expo Asset `~57.0.18`.
+The current production player uses Expo Audio with the SDK 57 New Architecture.
+Native compilation passes locally; physical-device behavior remains a separate
+release gate. Web playback remains outside scope.
 
 Sources:
 
 - [Expo 57 versioned docs](https://docs.expo.dev/versions/v57.0.0/)
 - [Expo 57 release notes](https://expo.dev/changelog/sdk-57)
 - [Router installation](https://docs.expo.dev/router/installation/)
-- [Track Player installation](https://www.rntp.dev/docs/installation)
-- [Track Player changelog](https://www.rntp.dev/changelog)
+- [Expo Audio](https://docs.expo.dev/versions/v57.0.0/sdk/audio/)
 - [Development Client](https://docs.expo.dev/versions/v57.0.0/sdk/dev-client/)
 - [EAS profiles](https://docs.expo.dev/build/eas-json/)
 - [EAS build infrastructure](https://docs.expo.dev/build-reference/infrastructure/)
@@ -234,11 +228,10 @@ On both native platforms:
 3. Check safe-area spacing, scrolling, large text, and screen-reader labels.
 4. Background and reopen: the placeholder remains usable.
 
-iOS background audio is declared with `UIBackgroundModes: ["audio"]`. Track
-Player auto-links and supplies Android media-playback foreground-service
-permissions in its own manifest; Expo includes network access. No Track Player
-config plugin is needed. Rebuild the client whenever native dependencies or
-Expo native configuration change.
+iOS background audio is declared with `UIBackgroundModes: ["audio"]`. The Expo
+Audio config plugin supplies Android's media-playback foreground service and
+permissions. Recording and microphone permissions are disabled. Rebuild the
+client whenever native dependencies or Expo native configuration change.
 Expo 57 targets iOS 16.4+ and Android 7+.
 
 Native playback milestones require their device acceptance checks. TypeScript,
@@ -264,12 +257,10 @@ than casting JSON to a claimed API interface. These are observed listener APIs,
 not a documented versioned broadcaster contract; fields can change.
 
 MP3 returned `audio/mpeg`, 128 kbps; AAC returned `audio/aacp`, 64 kbps.
-Both streams advertised `icy-metaint: 8192` and yielded actual ICY title/artist
-metadata. The HLS URL returned a valid master playlist. Select MP3 for the first
-player milestone because the canonical mount works, ICY metadata is available,
-and the codec is broadly supported. RNTP 5 supports both standard streams and
-HLS; no device latency/robustness comparison has been performed. Keep HLS available
-without preferring it or persisting its temporary CDN/session URL.
+The HLS URL returned a valid master playlist. MP3 was selected for the first
+player milestone because the canonical mount works and the codec is broadly
+supported. The migrated Expo Audio player prefers HLS and falls back to the
+direct MP3 mount without persisting a temporary CDN/session URL.
 
 `getStationInfo()`, `getStreamUrl()`, and `getNowPlaying()` are independently
 callable. Each makes a fresh request; consumers needing multiple fields should
@@ -300,7 +291,7 @@ These describe the Stage 2 checkpoint; Play is now enabled in Stage 3.
 
 Passed: strict TypeScript, online Expo dependency checks, all 21 Expo Doctor
 checks, and bundle exports for iOS/Android/web. Native projects were generated
-in a temporary directory without installing pods; Track Player was detected by
+in a temporary directory without installing pods; the native audio module was detected by
 autolinking on both platforms, and generated iOS configuration contains the audio
 background mode. Generated native projects were not added to this repository.
 
@@ -312,10 +303,9 @@ toolchains before completing the native acceptance check.
 
 ## Stage 3: native live playback
 
-Uses the installed `@rntp/player` 5.9.2 APIs verified against current docs and
-source: synchronous setup, media-item, play/pause, retry, state getters/events,
-and `setCommands`. Sources: [setup](https://www.rntp.dev/docs/player-setup),
-[playback](https://www.rntp.dev/docs/playback), [events](https://www.rntp.dev/docs/events).
+This section preserves the original native-player checkpoint. The current
+implementation instead uses the versioned Expo Audio APIs described in the
+[Expo SDK 57 Audio documentation](https://docs.expo.dev/versions/v57.0.0/sdk/audio/).
 
 No initialization or playback occurs on initial mount. First Play lazily loads
 the native library, initializes once in the foreground, discovers the verified
@@ -353,7 +343,7 @@ Exact next command for an existing development build:
 npm start
 ```
 
-Test on **both iOS and Android**, with a client including `@rntp/player`:
+Test on **both iOS and Android**, with a freshly generated native client:
 
 1. Cold launch: no audio and a Play button.
 2. Press Play: Connecting/Buffering changes to Playing live and WLFM is audible.
@@ -377,7 +367,7 @@ device acceptance was confirmed by the user before Stage 4 began.
 
 ## Stage 4: background audio and native controls
 
-The player requests exclusive music audio focus and uses Track Player's native
+The player requests exclusive music audio focus and uses Expo Audio's native
 Play/Pause handling. Native handling continues to work when React Native's
 JavaScript runtime is suspended, and seek/next/previous remain unavailable.
 The queued live item supplies `WLFM`, the station slogan, and a bundled WLFM image to iOS
@@ -405,19 +395,18 @@ Verified for Stage 4:
 - iOS and Android release bundle exports, both containing bundled artwork;
 - clean Expo prebuild in a temporary directory;
 - generated iOS `UIBackgroundModes` containing `audio`;
-- successful Android merged-manifest processing containing `WAKE_LOCK`,
-  `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, and Track Player's
-  `mediaPlayback` service.
+- successful Android merged-manifest processing containing
+  `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, and Expo Audio's
+  `AudioControlsService` media-playback service.
 
 Relevant current documentation:
 
 - [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/)
 - [Expo development builds](https://docs.expo.dev/develop/development-builds/use-development-builds/)
-- [Track Player setup and background playback](https://www.rntp.dev/docs/player-setup)
-- [Track Player playback and remote controls](https://www.rntp.dev/docs/playback)
+- [Expo SDK 57 Audio](https://docs.expo.dev/versions/v57.0.0/sdk/audio/)
 
-Expo Go cannot run this native player. A client that already contains Track
-Player and the iOS audio background mode only needs Metro for these Stage 4
+Expo Go cannot run this native player. A client that already contains Expo Audio
+and the iOS audio background mode only needs Metro for these Stage 4
 JavaScript changes:
 
 ```bash
@@ -459,19 +448,12 @@ Stage 4 device acceptance was confirmed by the user before Stage 5 began.
 
 ## Stage 5: now-playing metadata
 
-Track Player's `autoUpdateMetadataFromStream` is enabled. Native ICY/ID3 metadata
-updates the active media item and therefore the lock screen, Android notification,
-Bluetooth surfaces, and app UI without replacing or restarting the stream. The
-app listens to raw `MetadataReceived` events to establish stream authority and
-to `MediaMetadataChanged` for the effective native state. Foreground reconciliation
-recovers metadata events missed while JavaScript was suspended.
-
-The public Live365 `current-track` response is a fallback and artwork source. It
-is requested immediately after playback becomes audible and then at most every
-30 seconds while audio is playing. Polling stops and in-flight requests are
-aborted on pause or error. Live365 never overrides a stream title or artist.
-Its artwork is used only when normalized title and artist match the current
-stream track, preventing delayed directory responses from attaching stale art.
+The public Live365 `current-track` response is the title, artist, and remote
+artwork source. It is requested when playback starts and then at most every
+30 seconds while playback or Recently Played owns the poller. Polling stops and
+in-flight requests are aborted when no consumer remains. Generation checks stop
+stale responses from publishing. Accepted metadata updates Expo Audio's lock
+screen metadata without replacing or restarting the stream.
 
 Missing, blank, malformed, or non-HTTPS metadata falls back to the bundled WLFM
 image and:
@@ -488,15 +470,15 @@ the final visual design.
 Verified for Stage 5:
 
 - strict TypeScript;
-- 7 metadata tests covering source priority, matching artwork, malformed data,
-  polling scope, cancellation, and foreground recovery;
-- 15 player tests covering native event wiring and lock-screen metadata updates;
+- metadata tests covering Live365 parsing, sanitization, HTTPS artwork, bundled
+  fallback artwork, polling scope, cancellation, and stale-result rejection;
+- player tests covering native event wiring and lock-screen metadata updates
+  without source replacement;
 - 15/15 Live365 checks against the current public WLFM endpoint;
 - iOS, Android, and web bundle exports.
 
-Sources: [Track Player events](https://www.rntp.dev/docs/events),
-[Track Player playback](https://www.rntp.dev/docs/playback),
-[Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/), and the
+Sources: [Expo SDK 57 Audio](https://docs.expo.dev/versions/v57.0.0/sdk/audio/),
+[Expo SDK 57 Asset](https://docs.expo.dev/versions/v57.0.0/sdk/asset/), and the
 [WLFM public station response](https://api.live365.com/station/a98536).
 
 No native package or Expo configuration changed in Stage 5. Use the existing
@@ -521,10 +503,9 @@ Test on both iOS and Android:
 7. Disable networking during playback and confirm the last valid metadata or
    station fallback remains usable without crashing.
 
-Stream and directory timing can differ because of buffering or inserted content;
-the app intentionally trusts the audio stream in that case. Background JavaScript
-may be suspended, but Track Player's native auto-update path still updates stream
-title and artist on system media surfaces.
+Stream and directory timing can differ because of buffering or inserted content.
+Physical-device acceptance must confirm that Live365 metadata continues to update
+on system media surfaces while the app is backgrounded.
 
 ## Stage 6: final UI and engineering review
 
@@ -549,12 +530,13 @@ Final engineering review:
 - player setup, listeners, and UI stores are singletons per JavaScript runtime;
 - superseded playback and Live365 requests are aborted and guarded by generations;
 - UI subscriptions and component effects clean up on unmount;
-- metadata polling stops on pause/error and stale responses cannot publish;
-- native ICY/ID3 remains the title/artist authority; matching API art is optional;
+- metadata polling stops when neither playback nor Recently Played needs it,
+  and stale responses cannot publish;
+- Live365 current-track remains the title/artist/artwork authority;
 - foreground reconciliation covers native control changes and missed metadata;
 - iOS background audio and interruption/route handling remain configured;
-- Android manifest merging retains wake lock, foreground media permissions, and
-  Track Player's `mediaPlayback` service;
+- Android manifest merging retains foreground media permissions and Expo Audio's
+  `AudioControlsService` media-playback service;
 - iOS, Android, and web production bundle exports pass;
 - no new runtime dependency was added for the UI.
 
@@ -669,9 +651,8 @@ npx eas-cli@latest build --platform all --profile production
 
 Before the first store upload, replace `dev.studentradio.wlfm` with an
 institution-owned Android package and iOS bundle identifier; these identifiers
-are difficult or impossible to change after release. Confirm that WLFM's use of
-`@rntp/player` satisfies its license, verify continued access to the observed
-public Live365 listener API, and inspect the splash screen in a release build.
+are difficult or impossible to change after release. Verify continued access to
+the observed public Live365 listener API and inspect the splash screen in a release build.
 Do not put broadcaster credentials or private keys in the mobile bundle.
 
 At the Stage 6 checkpoint, `npm audit --omit=dev` reported moderate advisories in Expo SDK 57's
@@ -684,8 +665,7 @@ Recheck after Expo publishes compatible patched dependencies; do not use
 References: [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/),
 [Expo SplashScreen](https://docs.expo.dev/versions/v57.0.0/sdk/splash-screen/),
 [Expo development builds](https://docs.expo.dev/develop/development-builds/use-development-builds/),
-[Track Player setup](https://www.rntp.dev/docs/player-setup), and
-[Track Player events](https://www.rntp.dev/docs/events).
+and [Expo SDK 57 Audio](https://docs.expo.dev/versions/v57.0.0/sdk/audio/).
 
 ## Stage 7: Radio and Schedule tabs
 
@@ -933,7 +913,7 @@ and [EAS environments](https://docs.expo.dev/eas/environment-variables/).
 ### Development, validation, and builds
 
 Use the existing development build—not Expo Go—because playback depends on
-`@rntp/player`:
+the native Expo Audio module:
 
 ```bash
 npm ci
@@ -1007,7 +987,7 @@ updates ON AIR/UP NEXT state and never calls Google.
 - **Incorrect date or time:** confirm source events and the calendar use the
   intended times, then check the station/local display choice in Preferences.
 - **Playback stops during navigation:** confirm this is a development/release
-  build containing Track Player, iOS `UIBackgroundModes: audio`, and Android's
+  build containing Expo Audio, iOS `UIBackgroundModes: audio`, and Android's
   merged media playback service/permissions. Rebuild the native client after a
   native configuration change; Metro reload alone is insufficient.
 
@@ -1027,8 +1007,8 @@ Known release risks remain: the client key is extractable; public-calendar
 privacy is controlled by station calendar editors; quotas and Google API behavior
 can change; the in-memory cache does not survive process termination; direct
 mobile REST key restrictions need release-device validation; station identifiers
-still need institutional ownership; and `@rntp/player` licensing must be confirmed
-for WLFM's production use.
+still need institutional ownership; and physical-device background playback
+remains a release gate.
 
 ## Show favorites and local reminders
 

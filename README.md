@@ -7,7 +7,7 @@ I built this app to make WLFM easier to discover and listen to. By bringing the 
 ## Features
 
 - Live365 playback with background audio and native media controls
-- Now-playing metadata, album art, recently played tracks, and a sleep timer
+- Now-playing metadata, album art, and recently played tracks
 - A 14-day schedule loaded from Google Calendar
 - Station-time or device-time schedule display
 - Favorite shows and local reminder notifications
@@ -25,7 +25,7 @@ The app keeps routing, interface state, and external services separate:
 - `src/services/` isolates Live365, Google Calendar, WordPress, playback, and notifications.
 - `tests/` covers parsing, request handling, playback state, schedules, reminders, and articles.
 
-External responses are validated and converted into application-owned types instead of being passed directly to the interface. The schedule layer caches fresh results and coordinates overlapping requests, while the player service owns one native playback queue and rejects stale commands. Platform-specific adapters keep native-only audio and notification code out of the web build.
+External responses are validated and converted into application-owned types instead of being passed directly to the interface. The schedule layer caches fresh results and coordinates overlapping requests, while the player service owns one persistent native player and rejects stale commands. Platform-specific adapters keep native-only audio and notification code out of the web build.
 
 No separate application server is required. The app reads the public station stream and schedule directly and uses a dedicated read-only WordPress account for published stories.
 
@@ -34,10 +34,12 @@ No separate application server is required. The app reads the public station str
 - Expo SDK 57 and Expo Router
 - React Native 0.86 and React 19
 - TypeScript 6
-- `@rntp/player` for native audio
+- Expo Audio for native playback
 - Expo Notifications, SecureStore, and AsyncStorage
 - Live365, Google Calendar, and WordPress integrations
 - Node's built-in test runner
+
+Expo Audio is pinned to 57.0.5 because `patches/` contains a narrow iOS live-stream recovery patch. Its native recovery state tracks playback intent, connectivity, and source freshness so it can refresh an expired paused source, report playing/waiting transitions, and reload stale HLS after connectivity returns without overriding a deliberate Pause. Review and rebase the patch before changing the Expo Audio version.
 
 ## Getting started
 
@@ -72,6 +74,8 @@ After installing a development build, start Metro with:
 npm start
 ```
 
+The production player is exercised with the normal Home-screen Play button. See the [Expo Audio production-player device checklist](docs/expo-audio-production-testing.md) before release acceptance.
+
 `npm run web` can be used to preview the interface, but native playback, authenticated Blog access, and notifications are intentionally unavailable or limited on web.
 
 ## Verification
@@ -81,14 +85,13 @@ npm run typecheck
 node --test tests/*.test.mjs
 ```
 
-The current suite contains 154 checks. The latest local run passed 152 and skipped the two optional live-endpoint checks, with no failures. Live checks can be run separately with `npm run check:live365` and `npm run check:calendar` after configuration.
+The current suite contains 148 checks. The latest local run passed 146 and skipped the two optional live-endpoint checks, with no failures. Live checks can be run separately with `npm run check:live365` and `npm run check:calendar` after configuration.
 
 ## Current limitations
 
 - Live365 listener responses are public but are not a versioned API contract.
 - Playback and notification behavior still needs physical-device acceptance testing on both platforms.
 - The checked-in bundle identifiers use `dev.studentradio.wlfm` and should be replaced before distribution.
-- Distribution requires confirming that the selected `@rntp/player` license covers the station's use.
 - The Blog currently embeds an application password for a dedicated WordPress account configured for read-only access. Because client-side credentials are extractable, a production version should use an unauthenticated public feed or a small backend proxy.
 
 The detailed implementation history and platform notes from the original README are preserved in [docs/codex-output.md](docs/codex-output.md).

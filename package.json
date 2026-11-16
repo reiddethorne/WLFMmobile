@@ -5,9 +5,10 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
-    "@rntp/player": "5.13.0",
     "domhandler": "^6.0.1",
     "expo": "~57.0.26",
+    "expo-asset": "~57.0.18",
+    "expo-audio": "57.0.5",
     "expo-build-properties": "~57.0.22",
     "expo-constants": "~57.0.20",
     "expo-dev-client": "~57.0.19",
@@ -29,9 +30,11 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "patch-package": "8.0.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
+    "postinstall": "patch-package",
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "ios": "expo run:ios",

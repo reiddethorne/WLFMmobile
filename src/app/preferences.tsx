@@ -116,43 +116,41 @@ export default function Preferences() {
 
         <ShowPreferences />
 
-        {__DEV__ && (
-          <View style={styles.section}>
-            <Text accessibilityRole="header" style={styles.sectionTitle}>Developer</Text>
-            <View style={styles.optionsCard}>
-              <Pressable
-                accessibilityHint="Shows or hides connection and playback diagnostics on the Home screen"
-                accessibilityLabel="Show diagnostics"
-                accessibilityRole="switch"
-                accessibilityState={{ checked: showDiagnostics }}
-                onPress={() => setShowDiagnostics(!showDiagnostics)}
-                style={({ pressed }) => [styles.optionRow, pressed && styles.optionRowPressed]}
-              >
-                <View style={styles.optionIcon}>
-                  <Ionicons
-                    accessibilityElementsHidden
-                    color={theme.colors.icon}
-                    importantForAccessibility="no-hide-descendants"
-                    name="bug-outline"
-                    size={22}
-                  />
-                </View>
-                <Text style={styles.optionLabel}>Show diagnostics</Text>
-                <Switch
+        <View style={styles.section}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>Diagnostics</Text>
+          <View style={styles.optionsCard}>
+            <Pressable
+              accessibilityHint="Shows or hides connection and playback diagnostics on the Home screen"
+              accessibilityLabel="Show diagnostics"
+              accessibilityRole="switch"
+              accessibilityState={{ checked: showDiagnostics }}
+              onPress={() => setShowDiagnostics(!showDiagnostics)}
+              style={({ pressed }) => [styles.optionRow, pressed && styles.optionRowPressed]}
+            >
+              <View style={styles.optionIcon}>
+                <Ionicons
                   accessibilityElementsHidden
+                  color={theme.colors.icon}
                   importantForAccessibility="no-hide-descendants"
-                  ios_backgroundColor={theme.colors.disabled}
-                  onValueChange={setShowDiagnostics}
-                  pointerEvents="none"
-                  style={styles.settingSwitch}
-                  thumbColor={theme.colors.surface}
-                  trackColor={{ false: theme.colors.disabled, true: theme.colors.accent }}
-                  value={showDiagnostics}
+                  name="bug-outline"
+                  size={22}
                 />
-              </Pressable>
-            </View>
+              </View>
+              <Text style={styles.optionLabel}>Show diagnostics</Text>
+              <Switch
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                ios_backgroundColor={theme.colors.disabled}
+                onValueChange={setShowDiagnostics}
+                pointerEvents="none"
+                style={styles.settingSwitch}
+                thumbColor={theme.colors.surface}
+                trackColor={{ false: theme.colors.disabled, true: theme.colors.accent }}
+                value={showDiagnostics}
+              />
+            </Pressable>
           </View>
-        )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
