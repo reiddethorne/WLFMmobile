@@ -1,5 +1,7 @@
 # WLFM Mobile
 
+[![CI](https://github.com/reiddethorne/WLFMmobile/actions/workflows/ci.yml/badge.svg)](https://github.com/reiddethorne/WLFMmobile/actions/workflows/ci.yml)
+
 A cross-platform app for WLFM, Lawrence University's student radio station, built with Expo, React Native, and TypeScript.
 
 I built this app to make WLFM easier to discover and listen to. By bringing the live stream, schedule, reminders, and blog posts all into one place, I hope to help current listeners stay connected, introduce new listeners to the station, and help to grow WLFM’s audience.
@@ -79,6 +81,8 @@ The production player is exercised with the normal Home-screen Play button. See 
 `npm run web` can be used to preview the interface, but native playback, authenticated Blog access, and notifications are intentionally unavailable or limited on web.
 
 ## Verification
+
+GitHub Actions runs TypeScript checks and automated tests on every push and pull request.
 
 ```bash
 npm run typecheck
